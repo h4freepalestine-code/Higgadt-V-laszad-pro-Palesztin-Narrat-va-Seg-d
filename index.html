@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Higgadt Válaszadó - pro-Palesztin Narratíva Segéd</title>
+    <script>
+      // Prevent read-only window.fetch assignment errors in sandbox iframe environments
+      (function() {
+        try {
+          // Pre-emptively ensure FormData and its keys exist to bypass polyfills
+          if (typeof window !== 'undefined') {
+            if (typeof window.FormData === 'undefined') {
+              window.FormData = function FormData() {};
+              window.FormData.prototype.keys = function() { return []; };
+            } else if (!window.FormData.prototype.keys) {
+              window.FormData.prototype.keys = function() { return []; };
+            }
+          }
+
+          // Redefine fetch with a configurable proxy or writable/settable properties
+          var _rawFetch = window.fetch;
+          if (_rawFetch) {
+            Object.defineProperty(window, 'fetch', {
+              get: function() {
+                return _rawFetch;
+              },
+              set: function(val) {
+                console.log("Safe fetch patch intercepted override request.");
+                _rawFetch = val;
+              },
+              configurable: true,
+              enumerable: true
+            });
+            
+            if (typeof globalThis !== 'undefined' && globalThis !== window) {
+              Object.defineProperty(globalThis, 'fetch', {
+                get: function() {
+                  return _rawFetch;
+                },
+                set: function(val) {
+                  _rawFetch = val;
+                },
+                configurable: true,
+                enumerable: true
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Could not patch window.fetch setter securely:", e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

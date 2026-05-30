@@ -1,0 +1,6 @@
+{
+  "name": "Higgadt Válaszadó",
+  "description": "Békés, tényalapú és jogi fókuszú válaszgenerátor a palesztin narratíva képviseletére és a közösségi médiás trollok kezelésére.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
