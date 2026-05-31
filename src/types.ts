@@ -3,6 +3,12 @@ export interface PresetTrollComment {
   category: string;
   commentText: string;
   mythSummary: string;
+  localDebunk?: {
+    rebuttal: string;
+    keyFacts: string[];
+    lawsApplicable: string[];
+    furtherReading?: string;
+  };
 }
 
 export interface GeneratedCounter {
@@ -29,4 +35,21 @@ export interface ResourceItem {
   linkText: string;
   url: string;
   category: "un" | "ngo" | "law";
+}
+
+export interface PropagandaTactic {
+  id: string;
+  name: string;
+  description: string;
+  example: string;
+  counterStrategy: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  source: string;
 }

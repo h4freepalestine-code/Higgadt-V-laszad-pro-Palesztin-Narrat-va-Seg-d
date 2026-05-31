@@ -19,17 +19,32 @@ import {
   RefreshCw,
   AlertCircle,
   Info,
-  Lock,
   FileText,
   MousePointer,
-  ArrowRight,
   Brain,
   HelpCircle,
-  Flame
+  Flame,
+  Trophy,
+  RotateCcw,
+  Compass,
+  CheckCircle2,
+  XCircle
 } from "lucide-react";
 
-import { PRESET_COMMENTS, RESOURCE_ITEMS, DEBATE_STRATEGIES } from "./data";
-import { PresetTrollComment, GeneratedCounter, SavedResponse } from "./types";
+import {
+  PRESET_COMMENTS,
+  RESOURCE_ITEMS,
+  DEBATE_STRATEGIES,
+  PROPAGANDA_TACTICS,
+  QUIZ_QUESTIONS
+} from "./data";
+import {
+  PresetTrollComment,
+  GeneratedCounter,
+  SavedResponse,
+  PropagandaTactic,
+  QuizQuestion
+} from "./types";
 
 const BrandLogo = ({ className = "w-16 h-16" }: { className?: string }) => (
   <svg
@@ -44,55 +59,59 @@ const BrandLogo = ({ className = "w-16 h-16" }: { className?: string }) => (
         <stop offset="100%" stopColor="#059669" />
       </linearGradient>
     </defs>
-    {/* Outer elegant ring representing unity */}
     <circle cx="50" cy="50" r="46" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="3 3" />
-    
-    {/* Speech Bubble Base */}
     <path
       d="M30 28C20.0589 28 12 36.0589 12 46C12 55.9411 20.0589 64 30 64H36L44 71V64H70C79.9411 64 88 55.9411 88 46C88 36.0589 79.9411 28 70 28H30Z"
       fill="url(#logo-grad)"
     />
-    
-    {/* Palestinian Red Triangle accent inside/on bottom-side */}
     <path
       d="M12 46L22 41V51L12 46Z"
       fill="#ef4444"
     />
-    
-    {/* Balanced scales & Olive branch combined emblem */}
     <path
       d="M33 50C38 48 43 43 48 41C53 39 58 40 63 41"
       stroke="#ffffff"
       strokeWidth="2.5"
       strokeLinecap="round"
     />
-    {/* Olive Leaf 1 */}
     <path
       d="M38 48C37 44 39 41 42 42C43 44 41 47 38 48Z"
       fill="#ffffff"
     />
-    {/* Olive Leaf 2 */}
     <path
       d="M45 44C46 40 49 39 50 42C49 44 47 45 45 44Z"
       fill="#ffffff"
     />
-    {/* Olive Leaf 3 */}
     <path
       d="M53 40C53 36 56 36 57 39C56 41 54 41 53 40Z"
       fill="#ffffff"
     />
-    {/* Olive Leaf 4 */}
     <path
       d="M60 41C62 37 65 38 64 41C62 42 61 42 60 41Z"
       fill="#ffffff"
     />
-    
-    {/* Justice Scale Bar symbol */}
     <path d="M28 52.5H72" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeDasharray="1 2" opacity="0.9" />
   </svg>
 );
 
+const getApiUrl = (path: string): string => {
+  const isCapacitor = typeof window !== "undefined" && (
+    (window as any).Capacitor || 
+    window.location.protocol === "capacitor:" ||
+    window.location.protocol === "file:" ||
+    (window.location.hostname === "localhost" && !window.location.port)
+  );
+
+  if (isCapacitor) {
+    return `https://ais-pre-ikpxmp3zwudpehdhk7ofrl-759050678263.europe-west2.run.app${path}`;
+  }
+  return path;
+};
+
 export default function App() {
+  // Navigation tabs
+  const [activeTab, setActiveTab] = useState<"ai" | "database" | "tactics" | "quiz">("ai");
+
   // Input states
   const [inputText, setInputText] = useState("");
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
@@ -110,12 +129,26 @@ export default function App() {
   const [history, setHistory] = useState<SavedResponse[]>([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
 
+  // Search and filter states (Mítosztár tab)
+  const [dbSearchQuery, setDbSearchQuery] = useState("");
+  const [dbSelectedCategory, setDbSelectedCategory] = useState<string>("all");
+  const [expandedMythId, setExpandedMythId] = useState<string | null>(null);
+
+  // Quiz states
+  const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
+  const [selectedQuizIndex, setSelectedQuizIndex] = useState<number | null>(null);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizCompleted, setQuizCompleted] = useState(false);
+
   // UI status feedback
-  const [copyStatus, setCopyStatus] = useState<string | null>(null); // 'response' | 'fact-X' | etc.
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>("all");
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const resultRef = useRef<HTMLDivElement | null>(null);
+
+  // Categories extraction for Filter Chips
+  const allCategories = ["all", ...Array.from(new Set(PRESET_COMMENTS.map(item => item.category)))];
 
   // Load history from localStorage on mount
   useEffect(() => {
@@ -161,13 +194,13 @@ export default function App() {
 
     // Staggered loading animations to entertain and inform
     const loadingIntervals = [
-      setTimeout(() => setLoadingStep(1), 800),
-      setTimeout(() => setLoadingStep(2), 2000),
-      setTimeout(() => setLoadingStep(3), 3400),
+      setTimeout(() => setLoadingStep(1), 850),
+      setTimeout(() => setLoadingStep(2), 1900),
+      setTimeout(() => setLoadingStep(3), 3100),
     ];
 
     try {
-      const response = await fetch("/api/counter-comment", {
+      const response = await fetch(getApiUrl("/api/counter-comment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -180,7 +213,6 @@ export default function App() {
 
       const data = await response.json();
 
-      // Clear the loading step timeouts
       loadingIntervals.forEach(clearTimeout);
 
       if (!response.ok) {
@@ -204,7 +236,6 @@ export default function App() {
       const updatedHistory = [newSavedItem, ...history];
       saveHistoryToLocal(updatedHistory);
 
-      // Smooth scroll to results
       setTimeout(() => {
         resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 300);
@@ -212,7 +243,7 @@ export default function App() {
     } catch (err: any) {
       loadingIntervals.forEach(clearTimeout);
       console.error(err);
-      setErrorMsg(err.message || "Ismeretlen hiba lépett fel a válaszgenerálás során.");
+      setErrorMsg(err.message || "Ismeretlen hiba lépett fel a válaszgenerálás során. Kérjük ellenőrizze a GEMINI_API_KEY-t a Secrets menüben.");
     } finally {
       setIsLoading(false);
     }
@@ -231,7 +262,6 @@ export default function App() {
       pitfallsToAvoid: item.pitfallsToAvoid
     });
 
-    // Smooth scroll to results
     setTimeout(() => {
       resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
@@ -257,23 +287,57 @@ export default function App() {
     }, 2000);
   };
 
-  // Loading indicator messages step-by-step
-  const getLoadingMessage = () => {
-    switch (loadingStep) {
-      case 0:
-        return "Troll komment elemzése és nyelvezet értelmezése...";
-      case 1:
-        return "Történelmi háttér, ENSZ határozatok és jogi érvek feltérképezése...";
-      case 2:
-        return "Békés, határozott de higgadt palesztin válasz megfogalmazása gyűlöletbeszéd nélkül...";
-      case 3:
-        return "Utolsó simítások: Taktikai óvintézkedések és elkerülendő csapdák összegyűjtése...";
-      default:
-        return "Válasz generálása...";
+  // Load a database refutation into the AI generator
+  const handleLoadToAi = (myth: PresetTrollComment) => {
+    setInputText(myth.commentText);
+    setSelectedPresetId(myth.id);
+    setActiveTab("ai");
+    setTimeout(() => {
+      window.scrollTo({ top: 350, behavior: "smooth" });
+    }, 200);
+  };
+
+  // Quiz submission & state change handlers
+  const handleQuizOptionClick = (idx: number) => {
+    if (quizSubmitted) return;
+    setSelectedQuizIndex(idx);
+  };
+
+  const handleQuizSubmit = () => {
+    if (selectedQuizIndex === null || quizSubmitted) return;
+    setQuizSubmitted(true);
+    const question = QUIZ_QUESTIONS[currentQuizIndex];
+    if (selectedQuizIndex === question.correctIndex) {
+      setQuizScore(prev => prev + 1);
     }
   };
 
-  // Filters preset comments dynamically
+  const handleQuizNext = () => {
+    if (currentQuizIndex < QUIZ_QUESTIONS.length - 1) {
+      setCurrentQuizIndex(prev => prev + 1);
+      setSelectedQuizIndex(null);
+      setQuizSubmitted(false);
+    } else {
+      setQuizCompleted(true);
+    }
+  };
+
+  const handleResetQuiz = () => {
+    setCurrentQuizIndex(0);
+    setSelectedQuizIndex(null);
+    setQuizSubmitted(false);
+    setQuizScore(0);
+    setQuizCompleted(false);
+  };
+
+  const getQuizRank = (score: number) => {
+    const ratio = score / QUIZ_QUESTIONS.length;
+    if (ratio >= 0.8) return "Tényszerű Diplomata 🇵🇸";
+    if (ratio >= 0.5) return "Haladó Tizenkettedik";
+    return "Ténybúvár Tanuló";
+  };
+
+  // Filter preset comments dynamically for search
   const filteredPresets = PRESET_COMMENTS.filter(preset => {
     const matchesSearch = preset.commentText.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           preset.mythSummary.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -281,574 +345,1073 @@ export default function App() {
     return matchesSearch;
   });
 
+  // Filter for database tab
+  const filteredDbMyths = PRESET_COMMENTS.filter(myth => {
+    const matchesSearch = myth.commentText.toLowerCase().includes(dbSearchQuery.toLowerCase()) ||
+                          myth.mythSummary.toLowerCase().includes(dbSearchQuery.toLowerCase()) ||
+                          (myth.localDebunk?.rebuttal.toLowerCase().includes(dbSearchQuery.toLowerCase()) || false);
+    const matchesCategory = dbSelectedCategory === "all" || myth.category === dbSelectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const getLoadingMessage = () => {
+    switch (loadingStep) {
+      case 0:
+        return "Troll komment mélyelemzése és érvelési pontok szétválasztása...";
+      case 1:
+        return "Törvényi alapok (Genfi Egyezmények, ENSZ határozatok) lekérdezése...";
+      case 2:
+        return "Békés, határozott palesztin válaszminta ölése szigorúan gyűlöletmentesen...";
+      case 3:
+        return "Utolsó ellenőrzés: taktikai intellektuális tanácsok és csapda-hárítás rendezése...";
+      default:
+        return "Válasz generálása...";
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col antialiased">
+    <div className="min-h-screen bg-slate-50 flex flex-col antialiased font-sans">
       {/* Visual Header Panel with Palestine colors subtle integration */}
-      <header className="relative bg-white border-b border-slate-200 overflow-hidden">
-        {/* Top-line colors representing the Palestinian flag */}
+      <header className="relative bg-white border-b border-slate-200">
         <div className="h-2 flex w-full">
           <div className="bg-black w-1/3 h-full"></div>
           <div className="bg-[#009739] w-1/3 h-full"></div>
           <div className="bg-[#ef4444] w-1/12 h-full relative">
-            {/* Red triangle effect */}
             <div className="absolute top-0 left-0 w-0 h-0 border-t-[8px] border-t-transparent border-l-[16px] border-l-[#ef4444]"></div>
           </div>
           <div className="bg-white w-3/12 h-full"></div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <div className="flex items-center gap-3">
                 <span className="inline-flex items-center justify-center p-1 bg-emerald-50 text-emerald-600 rounded-lg">
                   <BrandLogo className="w-10 h-10" />
                 </span>
-                <h1 className="text-2xl font-bold font-display text-slate-900 tracking-tight">
-                  Higgadt Válaszadó
-                </h1>
-                <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-medium">
-                  pro-Palesztin Narratíva Segéd
-                </span>
+                <div>
+                  <h1 className="text-2xl font-bold font-display text-slate-900 tracking-tight flex items-center gap-2">
+                    Higgadt Válaszadó
+                  </h1>
+                  <span className="text-[10px] uppercase font-mono tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-sm">
+                    Hasbara cáfolat és ténygyűjtemény
+                  </span>
+                </div>
               </div>
-              <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-                Békés, tényalapú és nemzetközi jogi fókuszú válaszgenerátor a palesztin ügy méltóságteljes képviseletére és az online dezinformáció cáfolatára.
+              <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-2xl">
+                Békés, nemzetközi jogi fókuszú és emberi jogi központú magyar válaszgenerátor az igazságos és méltóságteljes online képviseletért.
               </p>
             </div>
 
             {/* Quick stats / ethical banner */}
-            <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100 max-w-xs">
-              <ShieldAlert className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <div className="flex items-center gap-2.5 text-[11px] text-emerald-800 bg-emerald-50/75 px-3.5 py-2.5 rounded-lg border border-emerald-100 max-w-sm">
+              <ShieldAlert className="w-4.5 h-4.5 text-emerald-600 flex-shrink-0" />
               <span>
-                <strong>Békés elköteleződés:</strong> Nem támogatunk erőszakot vagy gyűlöletbeszédet. Célunk az intelligens és méltó felvilágosítás.
+                <strong>Békés elvek:</strong> Nemzetközi jogon és tényszerűségen alapuló megközelítés. Szigorúan gyűlöletbeszéd-mentesen és az erőszak dicsőítése nélkül.
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Dynamic Navigation Tabs */}
+        <div className="bg-slate-50 border-t border-slate-200 px-4 sm:px-8">
+          <div className="max-w-7xl mx-auto flex overflow-x-auto gap-1 scrollbar-none py-1.5">
+            <button
+              onClick={() => setActiveTab("ai")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === "ai"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/40"
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-emerald-500" />
+              🧠 AI Válaszadó Generator
+            </button>
+            <button
+              onClick={() => setActiveTab("database")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === "database"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/40"
+              }`}
+            >
+              <BookOpen className="w-4 h-4 text-blue-500" />
+              🗃️ Mítosz-cáfoló Tár (Offline)
+            </button>
+            <button
+              onClick={() => setActiveTab("tactics")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === "tactics"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/40"
+              }`}
+            >
+              <Brain className="w-4 h-4 text-purple-500" />
+              🛡️ Propaganda Technikák
+            </button>
+            <button
+              onClick={() => setActiveTab("quiz")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === "quiz"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/40"
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-amber-500" />
+              🧠 Ismeretterjesztő Kvíz ({QUIZ_QUESTIONS.length})
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* LEFT COLUMN: Input Control & Troll Presets (cols: 5) */}
-          <section className="lg:col-span-5 flex flex-col gap-6">
-            
-            {/* Presets and Sablonok selection */}
-            <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <MessageSquare className="w-4 h-4 text-slate-500" />
-                  Gyakori troll érvek keresője
-                </h2>
-                <span className="text-xs text-slate-400">Kattints egyre a teszteléshez</span>
-              </div>
-
-              {/* Search within presets */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Keresés az érvek, mítoszok között..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:border-emerald-500 bg-slate-50/50"
-                  id="preset-search-input"
-                />
-              </div>
-
-              {/* Preset List */}
-              <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                {filteredPresets.map((preset) => (
-                  <button
-                    key={preset.id}
-                    onClick={() => handleSelectPreset(preset)}
-                    className={`w-full text-left p-2.5 rounded-lg text-xs transition-all border sm:hover:border-emerald-300 sm:hover:bg-emerald-50/20 active:bg-emerald-50 ${
-                      selectedPresetId === preset.id
-                        ? "bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500/20"
-                        : "bg-slate-50 border-slate-200 text-slate-700"
-                    }`}
-                    type="button"
-                    id={`preset-btn-${preset.id}`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-semibold text-[10px] uppercase tracking-wide bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-sm">
-                        {preset.category}
-                      </span>
-                      <span className="text-[10px] text-slate-400 flex items-center gap-0.5 font-mono">
-                        Kipróbálás <MousePointer className="w-3 h-3" />
-                      </span>
-                    </div>
-                    <span className="font-medium text-slate-500 block line-clamp-1 mb-0.5">
-                      Mítosz: {preset.mythSummary}
-                    </span>
-                    <p className="text-slate-800 line-clamp-2 italic font-serif">
-                      &quot;{preset.commentText}&quot;
-                    </p>
-                  </button>
-                ))}
-                {filteredPresets.length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-4">
-                    Nincs a keresésnek megfelelő előre beállított érv.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Custom Input form & settings */}
-            <form onSubmit={handleGenerate} className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 flex flex-col gap-4">
-              <div>
-                <label htmlFor="comment-textarea" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Magad találtad? Másold be a troll kommentet:
-                </label>
-                <textarea
-                  id="comment-textarea"
-                  value={inputText}
-                  onChange={(e) => {
-                    setInputText(e.target.value);
-                    setSelectedPresetId(null); // Deselect preset since they are modifying/writing
-                  }}
-                  rows={4}
-                  placeholder="Fejtsd le az Izrael-Palesztina témájú troll vagy támadó kommentet ide, amire választ akarsz adni..."
-                  className="w-full p-3 text-sm rounded-lg border border-slate-200 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
-                  required
-                />
-                <div className="text-right text-[11px] text-slate-400 mt-1">
-                  Karakterszám: {inputText.length}
-                </div>
-              </div>
-
-              {/* Tone style selection */}
-              <div>
-                <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Válaszreakció stratégiája ({DEBATE_STRATEGIES.length})
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {DEBATE_STRATEGIES.map((strat) => {
-                    const isSelected = selectedStrategy === strat.id;
-                    return (
-                      <button
-                        key={strat.id}
-                        type="button"
-                        onClick={() => setSelectedStrategy(strat.id)}
-                        className={`p-2.5 rounded-lg text-left border transition-all text-xs flex flex-col justify-between h-20 ${
-                          isSelected
-                            ? "bg-slate-900 text-white border-slate-950 shadow-xs"
-                            : "bg-white text-slate-700 border-slate-200 sm:hover:bg-slate-50"
-                        }`}
-                        id={`strat-btn-${strat.id}`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span className="font-semibold">{strat.title}</span>
-                          {strat.id === "factual" && <Scale className="w-3.5 h-3.5" />}
-                          {strat.id === "humanitarian" && <Heart className="w-3.5 h-3.5" />}
-                          {strat.id === "historical" && <History className="w-3.5 h-3.5" />}
-                          {strat.id === "short" && <Zap className="w-3.5 h-3.5" />}
-                          {strat.id === "logical_debunk" && <Brain className="w-3.5 h-3.5" />}
-                          {strat.id === "socratic" && <HelpCircle className="w-3.5 h-3.5" />}
-                          {strat.id === "empathetic" && <MessageSquare className="w-3.5 h-3.5" />}
-                          {strat.id === "creative_analogy" && <FileText className="w-3.5 h-3.5" />}
-                          {strat.id === "sarcastic" && <Flame className="w-3.5 h-3.5 text-orange-500" />}
-                        </div>
-                        <span className={`text-[10px] leading-tight block line-clamp-2 ${
-                          isSelected ? "text-slate-300" : "text-slate-400"
-                        }`}>
-                          {strat.description}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Custom criteria & Output Language */}
-              <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100 space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <label htmlFor="lang-select" className="block text-[11px] font-semibold text-slate-600 uppercase">
-                      Válasz nyelve:
-                    </label>
-                    <p className="text-[10px] text-slate-400">Hol folyik a vita?</p>
-                  </div>
-                  <select
-                    id="lang-select"
-                    value={responseLanguage}
-                    onChange={(e) => setResponseLanguage(e.target.value)}
-                    className="text-xs bg-white border border-slate-200 rounded-md p-1.5 focus:outline-hidden focus:border-emerald-500"
-                  >
-                    <option value="Hungarian">🇭🇺 Magyar (Standard)</option>
-                    <option value="English">🇬🇧 English (Nemzetközi)</option>
-                  </select>
+        
+        {/* TAB 1: AI VÁLASZADÓ */}
+        {activeTab === "ai" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* LEFT COLUMN: Input Control & Troll Presets (cols: 5) */}
+            <section className="lg:col-span-5 flex flex-col gap-6">
+              
+              {/* Presets and Sablonok selection */}
+              <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <MessageSquare className="w-4 h-4 text-slate-500" />
+                    Betelepített mítoszok keresője
+                  </h2>
+                  <span className="text-[10px] text-slate-400">Töltsd be az AI-ba</span>
                 </div>
 
-                <div>
-                  <label htmlFor="custom-context" className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                    Extra szempont, egyéni kérés (Opcionális):
-                  </label>
+                {/* Search within presets */}
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
-                    id="custom-context"
-                    value={customContext}
-                    onChange={(e) => setCustomContext(e.target.value)}
-                    placeholder="pl: legyen kedves de határozott / említsd a bojkottot"
-                    className="w-full text-xs p-2 bg-white border border-slate-200 rounded-md focus:outline-hidden focus:border-emerald-500"
+                    placeholder="Keresés pl: ENSZ, Gáza, választások..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:border-emerald-500 bg-slate-50/50"
                   />
                 </div>
-              </div>
 
-              {/* Submission Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full py-3 px-4 rounded-lg font-semibold text-sm text-white shadow-xs transition-all flex items-center justify-center gap-2 ${
-                  isLoading
-                    ? "bg-slate-400 cursor-not-allowed"
-                    : "bg-emerald-600 sm:hover:bg-emerald-700 active:bg-emerald-800"
-                }`}
-                id="generate-response-btn"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Higgadt válasz generálása...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Cáfolat Generálása</span>
-                  </>
-                )}
-              </button>
-
-              {errorMsg && (
-                <div className="bg-red-50 text-red-700 p-3 rounded-lg border border-red-100 text-xs flex gap-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">Hiba történt:</span> {errorMsg}
-                  </div>
-                </div>
-              )}
-            </form>
-
-            {/* Local History log */}
-            <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-3 text-slate-900">
-                <h3 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                  <History className="w-4 h-4 text-slate-500" />
-                  Korábbi generálások ({history.length})
-                </h3>
-                {history.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (confirm("Biztosan törlöd az összes korábbi válaszodat az előzményekből?")) {
-                        saveHistoryToLocal([]);
-                      }
-                    }}
-                    className="text-[10px] text-red-500 sm:hover:text-red-700"
-                    type="button"
-                  >
-                    Összes törlése
-                  </button>
-                )}
-              </div>
-
-              {history.length === 0 ? (
-                <div className="text-center py-6 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-                  <History className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
-                  <p className="text-xs text-slate-400 px-4">Egyelőre nincsenek elmentett válaszok. A generált válaszok ide mentődnek vissza.</p>
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-                  {history.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => handleSelectHistoryItem(item)}
-                      className={`text-left p-2 rounded-lg text-xs cursor-pointer border transition-all flex items-start gap-2 ${
-                        selectedHistoryId === item.id
-                          ? "bg-slate-100 border-slate-400 font-medium"
-                          : "bg-slate-50/80 border-slate-100 sm:hover:bg-slate-50 text-slate-600"
+                {/* Preset List */}
+                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {filteredPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleSelectPreset(preset)}
+                      className={`w-full text-left p-2.5 rounded-lg text-xs transition-all border sm:hover:border-emerald-300 sm:hover:bg-emerald-50/20 active:bg-emerald-50 ${
+                        selectedPresetId === preset.id
+                          ? "bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500/20"
+                          : "bg-slate-50 border-slate-200 text-slate-700"
                       }`}
-                      id={`history-item-${item.id}`}
+                      type="button"
                     >
-                      <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${selectedHistoryId === item.id ? "text-emerald-500" : "text-slate-400"}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
-                          <span>{item.generatedAt}</span>
-                          <span className="font-semibold uppercase text-[8px] bg-slate-200 text-slate-800 px-1 rounded">
-                            {item.tone}
-                          </span>
-                        </div>
-                        <p className="line-clamp-1 italic text-slate-500 text-[11px] mb-0.5">&quot;{item.originalComment}&quot;</p>
-                        <p className="line-clamp-1 text-slate-900 font-medium text-[11px]">{item.response}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-[10px] uppercase tracking-wide bg-slate-200 text-slate-700 px-1.5  rounded-xs">
+                          {preset.category}
+                        </span>
+                        <span className="text-[9px] text-slate-400 flex items-center gap-0.5 font-mono">
+                          Kiválasztás <MousePointer className="w-3 h-3" />
+                        </span>
                       </div>
-                      <button
-                        onClick={(e) => handleDeleteHistoryItem(item.id, e)}
-                        className="text-slate-400 sm:hover:text-red-600 p-1 flex-shrink-0"
-                        title="Törlés"
-                        type="button"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                      <span className="font-semibold text-slate-600 block line-clamp-1 mb-0.5">
+                        Mítosz: {preset.mythSummary}
+                      </span>
+                      <p className="text-slate-800 line-clamp-1 italic font-serif">
+                        &quot;{preset.commentText}&quot;
+                      </p>
+                    </button>
                   ))}
+                  {filteredPresets.length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-4">
+                      Nincs a keresésnek megfelelő előre beállított argumentum.
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
 
-          </section>
+              {/* Custom Input form & settings */}
+              <form onSubmit={handleGenerate} className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 flex flex-col gap-4">
+                <div>
+                  <label htmlFor="comment-textarea" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                    Egyéb kommentet bírálsz? Másold be ide:
+                  </label>
+                  <textarea
+                    id="comment-textarea"
+                    value={inputText}
+                    onChange={(e) => {
+                      setInputText(e.target.value);
+                      setSelectedPresetId(null);
+                    }}
+                    rows={4}
+                    placeholder="Másold be a közösségi médián (X, FB, reddit) látott Hasbara troll hozzászólást..."
+                    className="w-full p-3 text-sm rounded-lg border border-slate-200 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    required
+                  />
+                  <div className="text-right text-[11px] text-slate-400 mt-1">
+                    Karakterek száma: {inputText.length}
+                  </div>
+                </div>
 
-          {/* RIGHT COLUMN: Output Dashboard & Context Resources (cols: 7) */}
-          <section ref={resultRef} className="lg:col-span-7 flex flex-col gap-6">
-            
-            <AnimatePresence mode="wait">
-              {isLoading ? (
-                /* Interactive elegant loading window */
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  className="bg-white rounded-xl shadow-xs border border-slate-200 p-8 text-center flex flex-col items-center justify-center min-h-[450px]"
-                >
-                  <div className="relative mb-6">
-                    {/* Animated outer circle representing Palestinian colors */}
-                    <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-                    <div className="w-16 h-16 rounded-full border-4 border-t-white border-l-[#10b981] border-r-[#ef4444] border-b-black animate-spin"></div>
-                    <Sparkles className="w-6 h-6 text-emerald-500 absolute inset-0 m-auto" />
+                {/* Tone style selection */}
+                <div>
+                  <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                    Válaszreakció stílustónusa
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {DEBATE_STRATEGIES.map((strat) => {
+                      const isSelected = selectedStrategy === strat.id;
+                      return (
+                        <button
+                          key={strat.id}
+                          type="button"
+                          onClick={() => setSelectedStrategy(strat.id)}
+                          className={`p-2 rounded-lg text-left border transition-all text-xs flex flex-col justify-between h-18 ${
+                            isSelected
+                              ? "bg-slate-900 text-white border-slate-950 shadow-xs"
+                              : "bg-white text-slate-700 border-slate-200 sm:hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className="font-semibold text-[11px]">{strat.title}</span>
+                            {strat.id === "factual" && <Scale className="w-3.5 h-3.5 text-blue-500" />}
+                            {strat.id === "humanitarian" && <Heart className="w-3.5 h-3.5 text-red-500" />}
+                            {strat.id === "historical" && <History className="w-3.5 h-3.5 text-amber-500" />}
+                            {strat.id === "short" && <Zap className="w-3.5 h-3.5 text-yellow-500" />}
+                            {strat.id === "logical_debunk" && <Brain className="w-3.5 h-3.5 text-purple-500" />}
+                            {strat.id === "socratic" && <HelpCircle className="w-3.5 h-3.5 text-indigo-500" />}
+                            {strat.id === "empathetic" && <MessageSquare className="w-3.5 h-3.5 text-teal-400" />}
+                            {strat.id === "creative_analogy" && <FileText className="w-3.5 h-3.5 text-sky-500" />}
+                            {strat.id === "sarcastic" && <Flame className="w-3.5 h-3.5 text-orange-500 animate-pulse" />}
+                          </div>
+                          <span className={`text-[9px] leading-tight block line-clamp-2 ${
+                            isSelected ? "text-slate-300" : "text-slate-400"
+                          }`}>
+                            {strat.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom criteria & Output Language */}
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-150 space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <label htmlFor="lang-select" className="block text-[10px] font-semibold text-slate-600 uppercase">
+                        Válasz generálási nyelv:
+                      </label>
+                    </div>
+                    <select
+                      id="lang-select"
+                      value={responseLanguage}
+                      onChange={(e) => setResponseLanguage(e.target.value)}
+                      className="text-xs bg-white border border-slate-200 rounded-md p-1.5 focus:outline-hidden focus:border-emerald-500"
+                    >
+                      <option value="Hungarian">🇭🇺 Magyar (Standard)</option>
+                      <option value="English">🇬🇧 English (Nemzetközi)</option>
+                    </select>
                   </div>
 
-                  <h3 className="text-lg font-bold text-slate-900 mb-2 font-display">
-                    Érvek megfogalmazása folyamatban...
+                  <div>
+                    <label htmlFor="custom-context" className="block text-[10px] font-semibold text-slate-600 uppercase mb-1">
+                      Különleges kérés, fókuszpont (Opcionális):
+                    </label>
+                    <input
+                      type="text"
+                      id="custom-context"
+                      value={customContext}
+                      onChange={(e) => setCustomContext(e.target.value)}
+                      placeholder="pld. említsd meg a gázai vízkészlet hiányát / határozott, de elegáns tónus..."
+                      className="w-full text-xs p-2 bg-white border border-slate-200 rounded-md focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                {/* Submission Button */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className={`w-full py-3 px-4 rounded-lg font-semibold text-sm text-white shadow-xs transition-all flex items-center justify-center gap-2 ${
+                    isLoading
+                      ? "bg-slate-400 cursor-not-allowed"
+                      : "bg-emerald-600 sm:hover:bg-emerald-700 active:bg-emerald-800"
+                  }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Hasbara Cáfolat kidolgozása...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Cáfolat Generálása (Gemini)</span>
+                    </>
+                  )}
+                </button>
+
+                {errorMsg && (
+                  <div className="bg-red-50 text-red-700 p-3 rounded-lg border border-red-100 text-xs flex gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold">Szerver megjegyzés:</span> {errorMsg}
+                    </div>
+                  </div>
+                )}
+              </form>
+
+              {/* Local History log */}
+              <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+                <div className="flex items-center justify-between mb-3 text-slate-900">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-slate-500" />
+                    Korábbi generálásaid ({history.length})
                   </h3>
-                  <p className="text-sm text-slate-500 max-w-sm mb-6 h-12 flex items-center justify-center italic">
-                    {getLoadingMessage()}
-                  </p>
+                  {history.length > 0 && (
+                    <button
+                      onClick={() => {
+                        if (confirm("Biztosan törlöd az összes korábbi válaszodat az előzményekből?")) {
+                          saveHistoryToLocal([]);
+                        }
+                      }}
+                      className="text-[10px] text-red-500 sm:hover:text-red-700"
+                      type="button"
+                    >
+                      Összes törlése
+                    </button>
+                  )}
+                </div>
 
-                  <div className="w-full bg-slate-100 h-1.5 rounded-full max-w-md overflow-hidden relative">
-                    <div
-                      className="bg-emerald-500 h-full transition-all duration-700"
-                      style={{ width: `${(loadingStep + 1) * 25}%` }}
-                    ></div>
+                {history.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                    <History className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
+                    <p className="text-[11px] text-slate-400 px-4">Egyelőre nincsenek helyi előzmények. A sikeresen legenerált cáfolataid ide fognak mentődni.</p>
                   </div>
-                  
-                  <div className="mt-8 space-y-2 text-left text-xs text-slate-400 max-w-md bg-slate-50 border border-slate-100 p-4 rounded-lg">
-                    <span className="font-semibold text-slate-500 block">Miért tart ez pár másodpercig?</span>
-                    <p>A Higgadt Válaszadó gondosan megvizsgálja a nemzetközi jogot, áthelyezi a fókuszt a puszta vádaskodásról a dokumentált igazságtalanságokra, és ellenőrzi a hangsúlyt, hogy az ne sértsen jóérzést, ne tartalmazzon antiszemita felhangot és mentes legyen az erőszak dicsőítésétől.</p>
-                  </div>
-                </motion.div>
-              ) : currentResult ? (
-                /* Generated results display window */
-                <motion.div
-                  key="result"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="space-y-6"
-                >
-                  {/* The Counter Response Card */}
-                  <div className="bg-white rounded-xl shadow-xs border border-emerald-100 p-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 rounded-full -mr-16 -mt-16 -z-0 pointer-events-none"></div>
-
-                    <div className="flex items-center justify-between mb-4 relative z-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                          Javasolt Counter-Komment (Másolható)
-                        </h3>
-                      </div>
-                      
-                      <button
-                        onClick={() => copyToClipboard(currentResult.response, "response")}
-                        className="inline-flex items-center gap-1.5 text-xs bg-slate-900 sm:hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg font-medium transition-all"
-                        id="copy-comment-btn"
-                        type="button"
+                ) : (
+                  <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                    {history.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handleSelectHistoryItem(item)}
+                        className={`text-left p-2 rounded-lg text-xs cursor-pointer border transition-all flex items-start gap-2 ${
+                          selectedHistoryId === item.id
+                            ? "bg-slate-100 border-slate-400 font-medium"
+                            : "bg-slate-50/80 border-slate-100 sm:hover:bg-slate-50 text-slate-600"
+                        }`}
                       >
-                        {copyStatus === "response" ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-300">Másolva!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Válasz másolása</span>
-                          </>
-                        )}
-                      </button>
+                        <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${selectedHistoryId === item.id ? "text-emerald-500" : "text-slate-400"}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between text-[9px] text-slate-400 mb-0.5">
+                            <span>{item.generatedAt}</span>
+                            <span className="font-semibold uppercase text-[8px] bg-slate-200 text-slate-800 px-1 rounded-sm">
+                              {item.tone}
+                            </span>
+                          </div>
+                          <p className="line-clamp-1 italic text-slate-500 text-[10px] mb-0.5">&quot;{item.originalComment}&quot;</p>
+                          <p className="line-clamp-1 text-slate-950 font-medium text-[10px]">{item.response}</p>
+                        </div>
+                        <button
+                          onClick={(e) => handleDeleteHistoryItem(item.id, e)}
+                          className="text-slate-400 sm:hover:text-red-600 p-1 flex-shrink-0"
+                          title="Törlés"
+                          type="button"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </section>
+
+            {/* RIGHT COLUMN: Output Dashboard & Context Resources (cols: 7) */}
+            <section ref={resultRef} className="lg:col-span-7 flex flex-col gap-6">
+              
+              <AnimatePresence mode="wait">
+                {isLoading ? (
+                  /* Interactive elegant loading window */
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    className="bg-white rounded-xl shadow-xs border border-slate-200 p-8 text-center flex flex-col items-center justify-center min-h-[450px]"
+                  >
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 rounded-full border-4 border-slate-150"></div>
+                      <div className="w-16 h-16 rounded-full border-4 border-t-[#009739] border-l-[#ef4444] border-r-black border-b-[#cbd5e1] animate-spin"></div>
+                      <Sparkles className="w-6 h-6 text-emerald-500 absolute inset-0 m-auto" />
                     </div>
 
-                    {/* Original comment citation */}
-                    {inputText && (
-                      <div className="mb-4 p-3 bg-slate-50 border-l-2 border-slate-300 text-slate-500 text-xs italic">
-                        <span className="text-[10px] font-bold block text-slate-400 select-none uppercase mb-1">Eredeti provokáció:</span>
-                        &quot;{inputText}&quot;
-                      </div>
-                    )}
+                    <h3 className="text-base font-bold text-slate-950 mb-2">
+                      Factual & Legal Analízis...
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mb-6 h-10 flex items-center justify-center italic">
+                      {getLoadingMessage()}
+                    </p>
 
-                    {/* Generated Draft area */}
-                    <div className="bg-emerald-50/20 rounded-lg border border-emerald-50 p-4 relative">
-                      <p className="text-slate-800 font-serif leading-relaxed text-sm whitespace-pre-wrap selection:bg-emerald-200">
-                        {currentResult.response}
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full max-w-sm overflow-hidden relative">
+                      <div
+                        className="bg-emerald-500 h-full transition-all duration-700"
+                        style={{ width: `${(loadingStep + 1) * 25}%` }}
+                      ></div>
+                    </div>
+                    
+                    <div className="mt-8 space-y-2 text-left text-[11px] text-slate-500 max-w-sm bg-slate-50 border border-slate-100 p-4 rounded-lg leading-relaxed">
+                      <span className="font-semibold text-slate-700 block text-xs">A MI felelősségteljes háttérmunkája:</span>
+                      <p>Kezdeményezett válaszaink soha nem süllyednek személyes sértések szintjére. Megkeressük az Amnesty International, HRW és az ENSZ hivatalos emberi jogi és legális hivatkozásait, hogy ellenállhatatlan, száraz tényszerű érveket és elkerülendő vitacsapdákat adjunk a kezedbe.</p>
+                    </div>
+                  </motion.div>
+                ) : currentResult ? (
+                  /* Generated results display window */
+                  <motion.div
+                    key="result"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="space-y-6"
+                  >
+                    {/* The Counter Response Card */}
+                    <div className="bg-white rounded-xl shadow-xs border border-emerald-100 p-6 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 rounded-full -mr-16 -mt-16 -z-0 pointer-events-none"></div>
+
+                      <div className="flex items-center justify-between mb-4 relative z-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                            Javasolt Cáfolat-Válasz (Másolható)
+                          </h3>
+                        </div>
+                        
+                        <button
+                          onClick={() => copyToClipboard(currentResult.response, "response")}
+                          className="inline-flex items-center gap-1.5 text-xs bg-slate-900 sm:hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg font-semibold transition-all"
+                        >
+                          {copyStatus === "response" ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="text-emerald-300">Másolva!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Szöveg másolása</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Original comment citation */}
+                      {inputText && (
+                        <div className="mb-4 p-3 bg-slate-50 border-l-2 border-slate-300 text-slate-500 text-xs italic">
+                          <span className="text-[9px] font-bold block text-slate-400 select-none uppercase mb-0.5">Eredeti provokatív érv:</span>
+                          &quot;{inputText}&quot;
+                        </div>
+                      )}
+
+                      {/* Generated Draft area */}
+                      <div className="bg-emerald-50/10 rounded-lg border border-emerald-100 p-4 relative">
+                        <p className="text-slate-850 font-serif leading-relaxed text-sm whitespace-pre-wrap selection:bg-emerald-100">
+                          {currentResult.response}
+                        </p>
+                      </div>
+
+                      <p className="text-[10px] text-slate-400 mt-2.5 flex items-center gap-1">
+                        <Info className="w-3.5 h-3.5 flex-shrink-0 text-slate-450" />
+                        Tipp: Mindig javasoljuk, hogy az elküldés előtt olvasd át és szabkozd át a saját szavaiddal a teljesen organikus és emberi tónus érdekében!
                       </p>
                     </div>
 
-                    <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
-                      <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                      Tipp: Beillesztés előtt átolvashatod és személyre is szabhatod a saját szavaiddal a hitelesség kedvéért!
-                    </p>
-                  </div>
-
-                  {/* Tactical Advice & Taktikai Útmutató */}
-                  <div className="bg-slate-900 text-white rounded-xl p-6 shadow-xs relative">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-4.5 h-4.5 text-amber-400" />
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                        Miért működik ez a válasz? (Taktikai tanács)
-                      </h4>
-                    </div>
-                    <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                      {currentResult.tacticalAdvice}
-                    </p>
-                  </div>
-
-                  {/* Facts list & Nemzetközi jogi forrástár */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
-                    {/* CSATORNÁZOTT TÉNYEK */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-5">
-                      <div className="flex items-center gap-1.5 mb-3 text-emerald-800 border-b border-slate-100 pb-2">
-                        <FileText className="w-4 h-4 text-emerald-600" />
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                          Felhasznált Tények, Források
+                    {/* Tactical Advice */}
+                    <div className="bg-slate-905 bg-slate-900 text-white rounded-xl p-5 shadow-xs relative">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                          Miért működik ez a válaszminta? (Taktikai Tanács)
                         </h4>
                       </div>
-                      <ul className="space-y-2.5">
-                        {currentResult.keyFactsUsed.map((fact, index) => (
-                          <li key={index} className="text-xs text-slate-700 flex gap-2 items-start">
-                            <span className="bg-emerald-100 text-emerald-800 text-[9px] font-mono h-5 w-5 rounded-full flex items-center justify-center font-bold flex-shrink-0 mt-0.5">
-                              {index + 1}
+                      <p className="text-xs text-slate-200 leading-relaxed">
+                        {currentResult.tacticalAdvice}
+                      </p>
+                    </div>
+
+                    {/* Facts list & Nemzetközi jogi forrástár */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      
+                      {/* CSATORNÁZOTT TÉNYEK */}
+                      <div className="bg-white rounded-xl border border-slate-200 p-5">
+                        <div className="flex items-center gap-1.5 mb-3 text-emerald-900 border-b border-slate-100 pb-2">
+                          <FileText className="w-4 h-4 text-emerald-600" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                            Beépített Tények és Hivatkozások
+                          </h4>
+                        </div>
+                        <ul className="space-y-2.5">
+                          {currentResult.keyFactsUsed.map((fact, index) => (
+                            <li key={index} className="text-xs text-slate-700 flex gap-2 items-start">
+                              <span className="bg-emerald-50 text-emerald-800 border border-emerald-150 text-[9px] font-mono h-5 w-5 rounded-full flex items-center justify-center font-bold flex-shrink-0 mt-0.5">
+                                {index + 1}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="leading-relaxed text-slate-600">{fact}</p>
+                                <button
+                                  onClick={() => copyToClipboard(fact, `fact-${index}`)}
+                                  className="text-[9px] text-slate-400 font-semibold sm:hover:text-emerald-500 mt-1 inline-flex items-center gap-1"
+                                  type="button"
+                                >
+                                  {copyStatus === `fact-${index}` ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-500" />
+                                      <span className="text-emerald-600">Másolva!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-2.5 h-2.5" />
+                                      <span>Tény másolása külön</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* CSAPDÁK ELKERÜLÉSE */}
+                      <div className="bg-white rounded-xl border border-slate-200 p-5">
+                        <div className="flex items-center gap-1.5 mb-3 text-red-900 border-b border-slate-100 pb-2">
+                          <ShieldAlert className="w-4 h-4 text-red-500" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                            Kerülendő Csapdák ebben a vitatémában
+                          </h4>
+                        </div>
+                        <ul className="space-y-2.5">
+                          {currentResult.pitfallsToAvoid.map((pitfall, index) => (
+                            <li key={index} className="text-xs text-slate-600 flex gap-2 items-start">
+                              <span className="bg-red-50 text-red-700 border border-red-100 text-[10px] font-mono h-5 w-5 rounded-full flex items-center justify-center font-bold flex-shrink-0 mt-0.5 font-bold">
+                                !
+                              </span>
+                              <p className="leading-relaxed leading-normal">{pitfall}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                    </div>
+
+                  </motion.div>
+                ) : (
+                  /* Empty / Waiting State */
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="bg-white rounded-xl shadow-xs border border-slate-200 p-8 text-center flex flex-col items-center justify-center min-h-[480px]"
+                  >
+                    <div className="mb-4">
+                      <BrandLogo className="w-18 h-18 mx-auto" />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 mb-1.5 font-display">
+                      Interaktív válasz-szimulációs pult
+                    </h3>
+                    <p className="text-xs text-slate-400 max-w-sm mb-6 leading-relaxed">
+                      Válassz egyet a bal oldali népszerű mítoszok közül mintasablonként, vagy illessz be egy saját kezűleg talált elfogult kommentet. Válaszd ki hozzá a megcáfolási taktikádat, majd nyomj a <strong>Cáfolat Generálása</strong> gombra!
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-md text-left text-[11px] text-slate-400 border-t border-slate-100 pt-6">
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-700 flex items-center gap-1">
+                          <span className="w-4 h-4 bg-slate-200 rounded-full inline-flex items-center justify-center font-mono text-[9px] text-slate-800">1</span>
+                          Másold a bejegyzést
+                        </span>
+                        <span>Másolj be bármilyen manipulatív vagy fiktív hasbara felvetést.</span>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-700 flex items-center gap-1">
+                          <span className="w-4 h-4 bg-slate-200 rounded-full inline-flex items-center justify-center font-mono text-[9px] text-slate-800">2</span>
+                          Válassz stratégiát
+                        </span>
+                        <span>Szabályozd a stílust: tényalapú, szókratészi kérdező vagy finom irónia.</span>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-700 flex items-center gap-1">
+                          <span className="w-4 h-4 bg-slate-200 rounded-full inline-flex items-center justify-center font-mono text-[9px] text-slate-800">3</span>
+                          Győzz le a dezinformációt
+                        </span>
+                        <span>Oszlasd el a tévszellemeket száraz, megdönthetetlen nemzetközi jogi hivatkozásokkal.</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Békés Etikai Kódex */}
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-[#ef4444]" />
+                  Aktivista Kódex az Igazságos Képviseletért
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900">1. Soha ne használj antiszemitizmust</p>
+                    <p className="leading-relaxed">A zsidó kulturális/vallási identitás és az izraeli megszálló állampolitika két teljesen különböző fogalom. Az antiszemita megjegyzések vállalhatatlanok, gyengítik a palesztin szabadság ügyét, és elterelik a szót a jogsérésekről.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900">2. Fejezz ki együttérzést minden civil felé</p>
+                    <p className="leading-relaxed">Egy fegyvertelen család, akár palesztin, akár izraeli származású, sérthetetlen és nem válhat katonai támadások célpontjává. A mi célunk a háborús bűnök és a hosszan tartó elnyomás megszüntetése, nem az indulatgerjesztés.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900">3. Kerüld a személyeskedő anyázást</p>
+                    <p className="leading-relaxed">A trollok legfőbb vágya a düh (derailing). Ha a fókuszt megingathatatlanul tényeken, jogsértési tényeken, statisztikákon és jogi paragrafusokon tartod, a trolloknak nincs válaszuk, s a semleges külső olvasó téged fog tisztelni.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900">4. Használj hivatalos ENSZ és izraeli forrást</p>
+                    <p className="leading-relaxed">Ha téged elfogultsággal vádolnak, hivatkozz izraeli emberi jogi szervezetekre (például B&apos;Tselem) vagy globális ernyőszervezetekre (Amnesty, HRW, ENSZ OCHA), melyeket Izrael sem tud érdemben megcáfolni.</p>
+                  </div>
+                </div>
+              </div>
+
+            </section>
+          </div>
+        )}
+
+        {/* TAB 2: OFFLINE MÍTOSZ ADATBÁZIS */}
+        {activeTab === "database" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-100">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-blue-500" />
+                    Hasbara Mítoszok & Faktuális Cáfolatok Tára
+                  </h2>
+                  <p className="text-xs text-slate-450 mt-1">
+                    Keress és olvass azonnali cáfolatot, nemzetközi jogi hivatkozásokat hálózati kapcsolat vagy promptolás nélkül. Copyzhatsz közvetlenül, vagy továbbtöltheted az észrevételeket az AI modellbe.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                  {/* Search box built in offline page */}
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Gyorskeresés a mítoszokban..."
+                      value={dbSearchQuery}
+                      onChange={(e) => setDbSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:border-emerald-500 bg-slate-50/50"
+                    />
+                  </div>
+                  
+                  {/* Reset filters */}
+                  {(dbSearchQuery || dbSelectedCategory !== "all") && (
+                    <button
+                      onClick={() => {
+                        setDbSearchQuery("");
+                        setDbSelectedCategory("all");
+                      }}
+                      className="text-xs text-emerald-600 sm:hover:text-emerald-700 font-semibold"
+                    >
+                      Szűrők törlése
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Category Filter Chips */}
+              <div className="flex flex-wrap gap-1.5 mb-5">
+                {allCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setDbSelectedCategory(cat)}
+                    className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-all border ${
+                      dbSelectedCategory === cat
+                        ? "bg-slate-900 text-white border-slate-950 shadow-xs"
+                        : "bg-slate-100 text-slate-600 border-slate-200 sm:hover:bg-slate-200/60"
+                    }`}
+                  >
+                    {cat === "all" ? "Összes kategória" : cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Claims database render grid */}
+              <div className="grid grid-cols-1 gap-4">
+                {filteredDbMyths.map((myth) => {
+                  const isExpanded = expandedMythId === myth.id;
+                  return (
+                    <div
+                      key={myth.id}
+                      className={`rounded-xl border transition-all overflow-hidden ${
+                        isExpanded
+                          ? "border-slate-400 bg-slate-50/20 shadow-xs"
+                          : "border-slate-200 bg-white sm:hover:border-slate-350"
+                      }`}
+                    >
+                      {/* Accordion Header */}
+                      <div
+                        onClick={() => setExpandedMythId(isExpanded ? null : myth.id)}
+                        className="p-4 sm:p-5 flex items-start gap-4 cursor-pointer select-none"
+                      >
+                        <span className="bg-slate-100 border border-slate-200 text-slate-800 text-[10px] font-bold uppercase py-1 px-2.5 rounded-sm flex-shrink-0 mt-0.5">
+                          {myth.category}
+                        </span>
+                        
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-[14px] text-slate-900 mb-1 leading-snug">
+                            {myth.mythSummary}
+                          </h3>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold text-red-500 uppercase tracking-wide">
+                              Sűrűn ismételt vád:
                             </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="leading-relaxed">{fact}</p>
+                            <p className="text-slate-500 text-xs italic line-clamp-1 italic font-serif inline-block">
+                              &quot;{myth.commentText}&quot;
+                            </p>
+                          </div>
+                        </div>
+
+                        <ChevronRight className={`w-5 h-5 text-slate-400 transition-transform flex-shrink-0 self-center ${isExpanded ? "rotate-90 text-slate-705" : ""}`} />
+                      </div>
+
+                      {/* Accordion expanded content */}
+                      {isExpanded && myth.localDebunk && (
+                        <div className="p-4 sm:p-6 bg-white border-t border-slate-200 space-y-5">
+                          
+                          {/* Ready to copy rebuttal comment */}
+                          <div className="bg-emerald-50/20 border border-emerald-100 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                                Higgadt Cáfolat (Azonnal másolható és beilleszthető)
+                              </span>
                               <button
-                                onClick={() => copyToClipboard(fact, `fact-${index}`)}
-                                className="text-[9px] text-slate-400 font-semibold sm:hover:text-emerald-500 mt-1 inline-flex items-center gap-1"
-                                type="button"
+                                onClick={() => copyToClipboard(myth.localDebunk?.rebuttal || "", `rebuttal-${myth.id}`)}
+                                className="inline-flex items-center gap-1 py-1 px-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-semibold rounded-md transition-all"
                               >
-                                {copyStatus === `fact-${index}` ? (
+                                {copyStatus === `rebuttal-${myth.id}` ? (
                                   <>
-                                    <Check className="w-3 h-3 text-emerald-500" />
-                                    <span className="text-emerald-600">Másolva!</span>
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                    <span className="text-emerald-350 font-bold">Másolva!</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Copy className="w-2.5 h-2.5" />
-                                    <span>Tény másolása külön</span>
+                                    <Copy className="w-3 h-3" />
+                                    <span>Másolás</span>
                                   </>
                                 )}
                               </button>
                             </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                            <p className="text-slate-800 text-xs sm:text-sm font-serif leading-relaxed font-sans">
+                              {myth.localDebunk.rebuttal}
+                            </p>
+                          </div>
 
-                    {/* CSAPDÁK ELKERÜLÉSE */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-5">
-                      <div className="flex items-center gap-1.5 mb-3 text-red-800 border-b border-slate-100 pb-2">
-                        <ShieldAlert className="w-4 h-4 text-red-500" />
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                          Kerülendő Csapdák vitában
-                        </h4>
+                          {/* Key Facts list */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block border-b border-slate-100 pb-1">
+                                Legfőbb bizonyítható tényadatok
+                              </span>
+                              <ul className="space-y-1.5">
+                                {myth.localDebunk.keyFacts.map((fact, index) => (
+                                  <li key={index} className="text-xs text-slate-600 flex gap-2 items-start leading-relaxed h-auto">
+                                    <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-mono text-slate-700 font-bold flex-shrink-0 mt-0.5">
+                                      {index + 1}
+                                    </span>
+                                    <span>{fact}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            {/* Applicable Laws */}
+                            <div className="space-y-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block border-b border-slate-100 pb-1">
+                                Vonatkozó Nemzetközi Jog & Határozat
+                              </span>
+                              <ul className="space-y-1.5">
+                                {myth.localDebunk.lawsApplicable.map((law, index) => (
+                                  <li key={index} className="text-xs text-slate-700 flex gap-2 items-start font-mono leading-normal">
+                                    <Scale className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                                    <span>{law}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+
+                          {/* Load to AI trigger button */}
+                          <div className="flex justify-end pt-3 border-t border-slate-100 gap-3">
+                            <button
+                              onClick={() => handleLoadToAi(myth)}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-4 py-2 rounded-lg transition-all border border-emerald-100"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Megnyitás az AI Válaszadóban (További testreszabás)
+                            </button>
+                          </div>
+
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {filteredDbMyths.length === 0 && (
+                  <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-lg">
+                    <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">Nincsen a keresésnek megfelelő mítosz az offline archívumban.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: PROPAGANDA TECHNIKÁK */}
+        {activeTab === "tactics" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+              <div className="pb-4 border-b border-slate-100 mb-5">
+                <h2 className="text-base font-bold text-slate-905 text-slate-905 text-slate-900 flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-purple-500" />
+                  Gyakori Hasbara & Propaganda Technikák Kezelése
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Tanuld meg felismerni azokat a manipulatív érvelési sémákat és retorikai csapdákat (érvelési hibákat), amelyeket a trollok a palesztin elnyomás elrejtésére használnak.
+                </p>
+              </div>
+
+              {/* Grid of strategies */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {PROPAGANDA_TACTICS.map((tact) => (
+                  <div
+                    key={tact.id}
+                    className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3 border-b border-slate-150 pb-2">
+                        <h3 className="font-bold text-slate-900 text-[14px] flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+                          {tact.name}
+                        </h3>
+                        <span className="text-[9px] uppercase font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded-sm font-semibold">
+                          Taktika
+                        </span>
                       </div>
-                      <ul className="space-y-2.5">
-                        {currentResult.pitfallsToAvoid.map((pitfall, index) => (
-                          <li key={index} className="text-xs text-slate-700 flex gap-2 items-start">
-                            <span className="bg-red-50 text-red-700 border border-red-100 text-[9px] font-mono h-5 w-5 rounded-full flex items-center justify-center font-bold flex-shrink-0 mt-0.5">
-                              !
-                            </span>
-                            <p className="leading-relaxed leading-normal">{pitfall}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                      
+                      <p className="text-slate-600 text-xs leading-relaxed mb-4">
+                        {tact.description}
+                      </p>
 
-                  </div>
+                      {/* Example Trap */}
+                      <div className="bg-red-50 border-l-2 border-red-300 p-3 rounded-r-lg mb-4">
+                        <span className="text-[9px] font-bold text-red-500 block uppercase mb-1">Példa Troll Állítás (Csapda):</span>
+                        <p className="text-slate-800 font-serif italic text-xs">&quot;{tact.example}&quot;</p>
+                      </div>
 
-                </motion.div>
-              ) : (
-                /* Empty / Waiting State */
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="bg-white rounded-xl shadow-xs border border-slate-200 p-8 text-center flex flex-col items-center justify-center min-h-[480px]"
-                >
-                  <div className="mb-4">
-                    <BrandLogo className="w-20 h-20 mx-auto" />
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-1.5">
-                    Higgadt palesztin-barát érvelő pult
-                  </h3>
-                  <p className="text-xs text-slate-500 max-w-sm mb-6 leading-relaxed">
-                    Válassz ki egy gyakori troll állítást a bal oldali listából, vagy másolj be egy hozzászólást a közösségi médiáról. Miután kiválasztottad a beszédmód-stratégiát, kattints a <strong className="text-emerald-700">Cáfolat Generálása</strong> gombra!
-                  </p>
-
-                  {/* Simple instructional steps */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-md text-left text-[11px] text-slate-400 border-t border-slate-100 pt-6">
-                    <div className="space-y-1">
-                      <span className="font-bold text-slate-800 flex items-center gap-1">
-                        <span className="w-4 h-4 bg-slate-200 rounded-full inline-flex items-center justify-center font-mono text-[9px]">1</span>
-                        Komment Másolás
-                      </span>
-                      <span>Másold be a megválaszolatlan, elfogult vagy hibás állítást.</span>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="font-bold text-slate-800 flex items-center gap-1">
-                        <span className="w-4 h-4 bg-slate-200 rounded-full inline-flex items-center justify-center font-mono text-[9px]">2</span>
-                        Fókusz Kiválasztás
-                      </span>
-                      <span>Döntsd el, hogy számadatokkal, történelmi adatokkal vagy röviden reagálsz.</span>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="font-bold text-slate-800 flex items-center gap-1">
-                        <span className="w-4 h-4 bg-slate-200 rounded-full inline-flex items-center justify-center font-mono text-[9px]">3</span>
-                        Békés Aktivizmus
-                      </span>
-                      <span>Másold és illeszd be, hogy eloszlasd a dezinformációs fellegeket.</span>
+                      {/* Counter Strategy */}
+                      <div className="bg-emerald-50/50 border-l-2 border-emerald-500 p-3 rounded-r-lg">
+                        <span className="text-[9px] font-bold text-emerald-800 block uppercase mb-1">Hárítás / Ajánlott Ellencsapás:</span>
+                        <p className="text-slate-700 text-xs leading-relaxed font-sans">{tact.counterStrategy}</p>
+                      </div>
                     </div>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Békés Etikai Kódex / Ethical discourse code card */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 mt-2">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-[#ef4444]" />
-                Online Etikai Kódex a Palesztin Narratíva Védelméért
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
-                <div className="space-y-2">
-                  <p className="font-semibold text-slate-800">1. Válaszd külön a zsidó embereket és az izraeli állam tetteit</p>
-                  <p className="leading-relaxed">Zsidó szervezetek és egyének ezrei állnak ki világszerte a palesztin szabadság mellett. Az antiszemitizmus elfogadhatatlan, gyengíti a palesztin ügy legitimitását, és áthelyezi a fókuszt a bűncselekményekről.</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="font-semibold text-slate-800">2. Mutass empátiát az ártatlan civilek irányába</p>
-                  <p className="leading-relaxed">Bármilyen katonai akció okozta civil szenvedést (legyen az palesztin vagy izraeli) elítélünk. Hangsúlyozd, hogy mi békét, egyenlőséget és a katonai megszállás megszüntetését kérjük.</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="font-semibold text-slate-800">3. Kerüld a vádaskodáson való dühöngést</p>
-                  <p className="leading-relaxed">A dühös visszavágás és szidalmazás pontosan az, amit a trollok akarnak (derailing). Ha tényeken, jogsértéseken és az ENSZ alapszabályain maradsz, a trolloknak nincs kapaszkodójuk.</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="font-semibold text-slate-800">4. Használj elismert külső forrásokat</p>
-                  <p className="leading-relaxed">Ha téged vádolnak elfogultsággal, utalj rá, hogy az érveid izraeli emberi jogi szervezetektől (B&apos;Tselem) vagy elismert nemzetközi NGO-któl származnak.</p>
+                ))}
+            
+                {/* Visual info footer card inside tactics */}
+                <div className="md:col-span-2 p-5 rounded-xl border border-blue-100 bg-blue-50/20 flex gap-4">
+                  <Info className="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-slate-600 space-y-1.5 leading-relaxed">
+                    <span className="font-bold text-slate-800 block text-sm">Hogyan hatástalanítsd a vitát?</span>
+                    <p>Amikor a troll érvelési hibát használ (pl. whataboutism), az olvasók figyelme a trollra terelődik. Ha nyugodtan, szárazon nevén nevezed az érvelési hibát, azzal azonnal visszaszerzed a vitapozíciódat: <em>&quot;Ez egy klasszikus whataboutism, amivel el akarja terelni a témát az Amnesty jelentéséről...&quot;</em></p>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
+        )}
 
-          </section>
+        {/* TAB 4: ISMERETTERJESZTŐ KVÍZ */}
+        {activeTab === "quiz" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 min-h-[460px] flex flex-col justify-between">
+              
+              <AnimatePresence mode="wait">
+                {!quizCompleted ? (
+                  /* Question Display & Interactive answering */
+                  <motion.div
+                    key="question-view"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    {/* Quiz Progress header */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-amber-500 animate-bounce" />
+                        <div>
+                          <h2 className="text-slate-900 font-bold text-sm uppercase tracking-wider">
+                            Palesztin Jogi és Történelmi Kvíz
+                          </h2>
+                          <p className="text-[10px] text-slate-450">Tényeken, jogi határozatokon alapuló teszt</p>
+                        </div>
+                      </div>
+                      <span className="bg-slate-100 text-slate-800 text-[11px] font-mono px-3 py-1 rounded-full font-bold">
+                        {currentQuizIndex + 1} / {QUIZ_QUESTIONS.length} kérdés
+                      </span>
+                    </div>
 
-        </div>
+                    {/* Question description */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <p className="font-bold text-slate-900 text-sm sm:text-base leading-snug">
+                        {QUIZ_QUESTIONS[currentQuizIndex].question}
+                      </p>
+                    </div>
+
+                    {/* Interactive Options list */}
+                    <div className="space-y-2">
+                      {QUIZ_QUESTIONS[currentQuizIndex].options.map((option, idx) => {
+                        // Evaluation states visual highlight
+                        let btnStyle = "bg-slate-50 border-slate-200 text-slate-800 sm:hover:bg-slate-100";
+                        if (selectedQuizIndex === idx && !quizSubmitted) {
+                          btnStyle = "bg-slate-800 text-white border-slate-900 ring-1 ring-slate-950/20";
+                        }
+                        if (quizSubmitted) {
+                          const isCorrect = idx === QUIZ_QUESTIONS[currentQuizIndex].correctIndex;
+                          const isSelected = idx === selectedQuizIndex;
+                          if (isCorrect) {
+                            btnStyle = "bg-green-100 text-green-800 border-green-500 font-semibold";
+                          } else if (isSelected) {
+                            btnStyle = "bg-red-100 text-red-800 border-red-500";
+                          } else {
+                            btnStyle = "bg-slate-50 text-slate-400 border-slate-200 line-through opacity-60";
+                          }
+                        }
+
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => handleQuizOptionClick(idx)}
+                            className={`w-full text-left p-3.5 rounded-lg text-xs sm:text-sm transition-all border flex items-center justify-between gap-3 ${btnStyle}`}
+                            disabled={quizSubmitted}
+                            type="button"
+                          >
+                            <span>{option}</span>
+                            {quizSubmitted && idx === QUIZ_QUESTIONS[currentQuizIndex].correctIndex && (
+                              <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            )}
+                            {quizSubmitted && idx === selectedQuizIndex && idx !== QUIZ_QUESTIONS[currentQuizIndex].correctIndex && (
+                              <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex justify-between items-center pt-3 border-t border-slate-100 gap-4">
+                      <div className="text-[11px] text-slate-400 font-medium">
+                        Összeszedett pontszám: <strong className="text-emerald-700">{quizScore}</strong> helyes válasz eddig.
+                      </div>
+                      
+                      {!quizSubmitted ? (
+                        <button
+                          onClick={handleQuizSubmit}
+                          disabled={selectedQuizIndex === null}
+                          className={`px-6 py-2 rounded-lg text-xs font-bold text-white shadow-xs transition-all ${
+                            selectedQuizIndex === null
+                              ? "bg-slate-300 cursor-not-allowed"
+                              : "bg-slate-900 sm:hover:bg-slate-800"
+                          }`}
+                        >
+                          Válasz ellenőrzése
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleQuizNext}
+                          className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs py-2 px-6 rounded-lg shadow-xs transition-all flex items-center gap-1"
+                        >
+                          <span>Szuper, menjünk tovább</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Explanation feedback card */}
+                    {quizSubmitted && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-emerald-50/30 border border-emerald-150 p-4 rounded-xl text-xs space-y-2 mt-2 leading-relaxed"
+                      >
+                        <h4 className="font-bold text-emerald-800 flex items-center gap-1">
+                          <Info className="w-4 h-4 flex-shrink-0" />
+                          Hitelérdemű Magyarázat és Háttér:
+                        </h4>
+                        <p className="text-slate-700 leading-relaxed font-sans">
+                          {QUIZ_QUESTIONS[currentQuizIndex].explanation}
+                        </p>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          Hivatalos forrástár: <strong>{QUIZ_QUESTIONS[currentQuizIndex].source}</strong>
+                        </div>
+                      </motion.div>
+                    )}
+
+                  </motion.div>
+                ) : (
+                  /* Quiz Completed End page */
+                  <motion.div
+                    key="completed-view"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="py-10 text-center space-y-5 max-w-md mx-auto"
+                  >
+                    <Trophy className="w-16 h-16 text-amber-500 mx-auto animate-bounce" />
+                    <h3 className="text-xl font-bold text-slate-900">
+                      Kvíz sikeresen befejezve!
+                    </h3>
+                    
+                    <div className="bg-slate-50 border border-slate-150 p-6 rounded-xl space-y-2">
+                      <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Te kapott fokozatod:</p>
+                      <h4 className="text-base font-bold text-emerald-700">
+                        {getQuizRank(quizScore)}
+                      </h4>
+                      <p className="text-sm font-semibold text-slate-700">
+                        Elért pontszám: <span className="text-slate-950 font-bold text-base">{quizScore}</span> a maximális <span className="font-bold">{QUIZ_QUESTIONS.length}</span> pontból.
+                      </p>
+                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mt-4">
+                        <div
+                          className="bg-emerald-500 h-full"
+                          style={{ width: `${(quizScore / QUIZ_QUESTIONS.length) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Szuper! A megszerzett tényekkel és ENSZ hivatkozásokkal most már sokkal hatékonyabban és méltóságteljesebben tudsz érvényesülni a közösségi médiás viták során.
+                    </p>
+
+                    <button
+                      onClick={handleResetQuiz}
+                      className="inline-flex items-center gap-1.5 bg-slate-905 bg-slate-900 text-white font-semibold text-xs py-2.5 px-6 rounded-lg hover:bg-slate-800 transition-all pointer-events-auto"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Kvíz Újraindítása
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+            </div>
+          </div>
+        )}
 
         {/* BOTTOM SECTION: Permanent Reference Library & Evidence Locker */}
         <section className="mt-8 bg-white rounded-xl shadow-xs border border-slate-200 p-6">
@@ -856,9 +1419,9 @@ export default function App() {
             <BookOpen className="w-5 h-5 text-emerald-600" />
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Hiteles Nemzetközi Ténytár és ENSZ Alapok
+                Nemzetközi Jogvédő Szervezetek & ENSZ Archívumok
               </h3>
-              <p className="text-xs text-slate-400">Az alábbi nemzetközi források segítenek elmélyíteni a tudásod és biztosítják az egyértelmű hivatkozási pontokat online vitákban.</p>
+              <p className="text-xs text-slate-400">Az alábbi elismert globális és izraeli szervezetek anyagai képezik cáfolataink legfőbb megdönthetetlen hivatkozási pontjait.</p>
             </div>
           </div>
 
@@ -867,7 +1430,7 @@ export default function App() {
               <div key={idx} className="p-4 bg-slate-50 rounded-lg border border-slate-100 flex flex-col justify-between hover:shadow-xs transition-all">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm ${
+                    <span className={`text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-sm ${
                       resItem.category === "un" ? "bg-blue-100 text-blue-800" :
                       resItem.category === "ngo" ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
                     }`}>
@@ -876,7 +1439,7 @@ export default function App() {
                     </span>
                     <button
                       onClick={() => copyToClipboard(resItem.url, `res-${idx}`)}
-                      className="text-[10px] text-slate-400 sm:hover:text-emerald-500 inline-flex items-center gap-1"
+                      className="text-[9px] text-slate-400 sm:hover:text-emerald-500 inline-flex items-center gap-1"
                       type="button"
                     >
                       {copyStatus === `res-${idx}` ? (
