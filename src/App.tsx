@@ -28,7 +28,9 @@ import {
   RotateCcw,
   Compass,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Download,
+  Cloud
 } from "lucide-react";
 
 import {
@@ -1412,6 +1414,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+
 
         {/* BOTTOM SECTION: Permanent Reference Library & Evidence Locker */}
         <section className="mt-8 bg-white rounded-xl shadow-xs border border-slate-200 p-6">
