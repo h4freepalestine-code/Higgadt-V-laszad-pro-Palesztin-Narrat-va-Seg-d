@@ -30,7 +30,11 @@ import {
   CheckCircle2,
   XCircle,
   Download,
-  Cloud
+  Cloud,
+  Eye,
+  Terminal,
+  Sliders,
+  Code
 } from "lucide-react";
 
 import {
@@ -45,7 +49,10 @@ import {
   GeneratedCounter,
   SavedResponse,
   PropagandaTactic,
-  QuizQuestion
+  QuizQuestion,
+  OsintResult,
+  OsintFinding,
+  OsintNarrative
 } from "./types";
 
 const BrandLogo = ({ className = "w-16 h-16" }: { className?: string }) => (
@@ -110,9 +117,142 @@ const getApiUrl = (path: string): string => {
   return path;
 };
 
+const PYTHON_SCRIPT_CODE = `#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+================================================================================
+                    HASBARA SEEKER v1.2.0 - HUNGARIAN OSINT SCANNER
+================================================================================
+Ez a Python-alapú OSINT (nyílt forráskódú hírszerzési) projekt arra szolgál, hogy
+szanálja és elemezze a főbb magyar hírportálok cikkeit az Izrael-Palesztina konfliktus
+kapcsán. Kiszűri és pontozza a tipikus kormánynarratívákat, az izraeli hasbara pult
+(spin gép) szófordulatait, és kimutatja a szövegbeli elfogultság szintjét.
+
+Telepítési parancs:
+   pip install requests beautifulsoup4 feedparser html5lib
+
+Futtatási parancs:
+   python hasbara_seeker.py
+================================================================================
+"""
+
+import os
+import re
+import feedparser
+import requests
+from bs4 import BeautifulSoup
+
+# Súlyozott indikátorok a magyarországi hírfolyamokhoz:
+PRO_ISRAEL_INDICATORS = {
+    "önvédelemhez való jog": 3,
+    "joga van megvédeni magát": 3,
+    "terroristák mögé bújnak": 3,
+    "emberi pajzsként használ": 3,
+    "a térség egyetlen demokráciája": 3,
+    "palesztin terroristák": 2,
+    "hamász-terroristák": 2,
+    "terroralagút": 2,
+    "fegyverraktárként használt": 3,
+    "nem provokált": 2,
+}
+
+PRO_PALESTINE_INDICATORS = {
+    "megszállás": 2,
+    "illegális telepek": 3,
+    "gázai népirtás": 3,
+    "apartheid-rendszer": 3,
+    "civil áldozatok": 1,
+    "humanitárius katasztrófa": 2,
+    "kollektív büntetés": 3,
+    "nemzetközi bíróság": 2,
+    "ensz határozat": 2,
+}
+
+FEEDS = {
+    "Mandiner-Külföld": "https://mandiner.hu/rss/rss_all.xml",
+    "Telex-Külföld": "https://telex.hu/rss/kulvelemeny",
+    "Index-Külföld": "https://index.hu/kulfold/rss",
+    "Origo-Külföld": "https://www.origo.hu/rss/kulfold/index.xml"
+}
+
+def analyze_text(text):
+    text_lower = text.lower()
+    h_score = 0
+    p_score = 0
+    matched = []
+    
+    for kw, weight in PRO_ISRAEL_INDICATORS.items():
+        count = len(re.findall(re.escape(kw), text_lower))
+        if count > 0:
+            h_score += count * weight
+            matched.append(f"{kw} [HASBARA] (x{count})")
+            
+    for kw, weight in PRO_PALESTINE_INDICATORS.items():
+        count = len(re.findall(re.escape(kw), text_lower))
+        if count > 0:
+            p_score += count * weight
+            matched.append(f"{kw} [ELLENPONT] (x{count})")
+            
+    return h_score, p_score, matched
+
+print("="*75)
+print("             🛰️  HASBARA SEEKER PYTHON OSINT SCANNER v1.2.0  🛰️")
+print("="*75)
+
+for portal, url in FEEDS.items():
+    print(f"\\n📡 Lekérés folyamatban: {portal}...")
+    try:
+        feed = feedparser.parse(url)
+        print(f"   Friss hírfolyam tételek száma: {len(feed.entries)}")
+        analyzed_count = 0
+        
+        for entry in feed.entries[:8]:
+            title = entry.get("title", "")
+            summary = entry.get("summary", entry.get("description", ""))
+            content = title + " " + summary
+            
+            # Konfliktus-relevancia vizsgálat
+            relevance = ["gáza", "izrael", "palesztin", "palesztina", "hamasz", "hamász"]
+            if not any(r in content.lower() for r in relevance):
+                continue
+                
+            analyzed_count += 1
+            h_score, p_score, matches = analyze_text(content)
+            
+            bias_ratio = 0
+            if (h_score + p_score) > 0:
+                bias_ratio = (h_score - p_score) / (h_score + p_score)
+                
+            status = "KIEGYENSÚLYOZOTT CONTEXT"
+            if bias_ratio > 0.2:
+                status = "ERŐSEN PRO-ISRAEL / HASBARA"
+            elif bias_ratio < -0.2:
+                status = "KRITIKUS / PRO-PALESTIN"
+                
+            print(f"   -> Cikk: {title}")
+            print(f"      Pontszámok: Hasbara: {h_score} | Palesztin: {p_score} | {status}")
+            if matches:
+                print(f"      Kiszűrt kulcsszavak: {', '.join(matches[:4])}")
+                
+        if analyzed_count == 0:
+            print("   (Nincs aktuális közel-keleti cikk ezen a hírfolyamon.)")
+    except Exception as e:
+        print(f"   ❌ Hárítási hiba a hírfolyam olvasásában: {e}")
+`;
+
 export default function App() {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<"ai" | "database" | "tactics" | "quiz">("ai");
+  const [activeTab, setActiveTab] = useState<"ai" | "database" | "tactics" | "quiz" | "osint">("ai");
+
+  // OSINT (Hasbara Seeker) States
+  const [osintTargetDomain, setOsintTargetDomain] = useState("mandiner.hu");
+  const [osintKeyword, setOsintKeyword] = useState("Gáza");
+  const [osintResult, setOsintResult] = useState<OsintResult | null>(null);
+  const [osintLoading, setOsintLoading] = useState(false);
+  const [osintError, setOsintError] = useState<string | null>(null);
+  const [osintConsoleLogs, setOsintConsoleLogs] = useState<string[]>([]);
+  const [activeOsintView, setActiveOsintView] = useState<"terminal" | "code" | "findings">("terminal");
 
   // Input states
   const [inputText, setInputText] = useState("");
@@ -248,6 +388,74 @@ export default function App() {
       setErrorMsg(err.message || "Ismeretlen hiba lépett fel a válaszgenerálás során. Kérjük ellenőrizze a GEMINI_API_KEY-t a Secrets menüben.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // OSINT Hasbara Seeker execution
+  const handleOsintScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOsintLoading(true);
+    setOsintError(null);
+    setOsintResult(null);
+    setActiveOsintView("terminal");
+    setOsintConsoleLogs([
+      "⚙️ HASBARA SEEKER v1.2.0 - OSINT vizsgáló motor indítása...",
+      "🔍 Rendszer-paraméterek inicializálása a magyar nyilvántartásokra és hírfolyamokra..."
+    ]);
+
+    const addLog = (text: string, delay: number) => {
+      return setTimeout(() => {
+        setOsintConsoleLogs(prev => [...prev, text]);
+      }, delay);
+    };
+
+    const timers = [
+      addLog(`📡 Célpont vizsgálat: https://${osintTargetDomain}`, 600),
+      addLog(`🧬 Kulcsszó- és kifejezésszűrő beállítva: "${osintKeyword}"`, 1300),
+      addLog("📂 Magyar hírügynökségi hírfolyamok és archív RSS tételek szűrése...", 2100),
+      addLog("🕷️ HTML struktúraelemzés és hivatkozott csatornák követése...", 3000),
+      addLog("🤖 Szövegbányászat és egyoldalú nyelvi indikátor számlálók elemzése...", 4000),
+      addLog("🪐 NLP narratíva-osztályozás és kormányszintű spin szűrés Gemini AI segítségével...", 5000),
+      addLog("📊 Statisztikai mutatók képzése és manipulációs kockázat mérése...", 6000),
+    ];
+
+    try {
+      const response = await fetch(getApiUrl("/api/osint-scan"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetDomain: osintTargetDomain,
+          keyword: osintKeyword
+        })
+      });
+
+      const data = await response.json();
+      timers.forEach(clearTimeout);
+
+      if (!response.ok) {
+        throw new Error(data.error || "Kommunikációs hiba az OSINT szerverrel.");
+      }
+
+      setOsintConsoleLogs(prev => [
+        ...prev,
+        "✅ Sikeres adatlehívás és NLP narratíva-feldolgozás!",
+        "📈 OSINT Hírszerzési Jelentés összeállítva.",
+        `📉 Biztonsági kockázati szint kiszámolva: ${data.riskLevel}`,
+        "💼 Vizsgálat sikeresen lezárva. Eredmények a kezelőpulton betöltve."
+      ]);
+
+      setOsintResult(data);
+      setTimeout(() => {
+        setActiveOsintView("findings");
+      }, 1000);
+      
+    } catch (err: any) {
+      timers.forEach(clearTimeout);
+      console.error(err);
+      setOsintError(err.message || "Ismeretlen hiba lépett fel az OSINT vizsgálat során. Győződj meg a Secrets beállításokról!");
+      setOsintConsoleLogs(prev => [...prev, `❌ HIBA: Vizsgálat meghiúsult. Részletek: ${err.message}`]);
+    } finally {
+      setOsintLoading(false);
     }
   };
 
@@ -461,6 +669,17 @@ export default function App() {
             >
               <Trophy className="w-4 h-4 text-amber-500" />
               🧠 Ismeretterjesztő Kvíz ({QUIZ_QUESTIONS.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("osint")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === "osint"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/40"
+              }`}
+            >
+              <Eye className="w-4 h-4 text-emerald-600 animate-pulse" />
+              🛰️ Hasbara Seeker (OSINT)
             </button>
           </div>
         </div>
@@ -1412,6 +1631,443 @@ export default function App() {
               </AnimatePresence>
 
             </div>
+          </div>
+        )}
+
+        {/* TAB 5: OSINT HASBARA SEEKER PORTAL */}
+        {activeTab === "osint" && (
+          <div className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-xl shadow-xs border border-slate-200 p-6 md:p-8"
+            >
+              {/* Top Banner and Brand Description */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
+                <div>
+                  <div className="flex items-center gap-2 text-emerald-600 mb-1">
+                    <Terminal className="w-5 h-5 animate-pulse" />
+                    <span className="text-xs font-bold uppercase tracking-wider font-mono">Hasbara Seeker Engine v1.2</span>
+                  </div>
+                  <h2 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+                    Magyarországi OSINT Hírszerző & Narratíva Kereső
+                  </h2>
+                  <p className="text-xs text-slate-500 max-w-2xl mt-1">
+                    Nyílt forráskódú hírszerzési (OSINT) hálózati megfigyelő. Elemzi a nagyobb magyar médiafelületek hírforrásait, az átvett külföldi hírügynökségi spin sablonokat, s leleplezi a dezinformációt a nemzetközi jog mércéjével mérve.
+                  </p>
+                </div>
+                
+                {/* Visual quick status */}
+                <div className="bg-slate-900 text-slate-100 p-3 rounded-lg flex items-center gap-3 border border-slate-700 min-w-[200px] font-mono text-[10px]">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+                  <div>
+                    <div className="text-slate-400">SEEKER NODE:</div>
+                    <div className="font-bold text-emerald-400">ONLINE (EGYENRANGÚ)</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid with Inputs, Actions and Console View */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Left Side: Inputs and Targeting Controls */}
+                <div className="lg:col-span-12 xl:col-span-5 space-y-5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 block">
+                    🌐 Célpont Konfigurálás
+                  </h3>
+                  
+                  <form onSubmit={handleOsintScan} className="space-y-4">
+                    {/* Source domain */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Média hírportál / Célpont domén:
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={osintTargetDomain}
+                          onChange={(e) => setOsintTargetDomain(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg p-2.5 text-xs font-medium focus:bg-white focus:border-emerald-500 focus:outline-hidden appearance-none"
+                        >
+                          <option value="mandiner.hu">Mandiner (mandiner.hu) — Erősen kormánypárti / Pro-Izraeli belföldi fókusz</option>
+                          <option value="origo.hu">Origo (origo.hu) — Kormányzati bulvár / Egyoldalú retorika</option>
+                          <option value="neokohn.hu">Neokohn (neokohn.hu) — Szelektív cionista fókuszportál</option>
+                          <option value="demokrata.hu">Magyar Demokrata (demokrata.hu) — Konzervatív hasbara-spin</option>
+                          <option value="telex.hu">Telex (telex.hu) — Mainstream független / Nyugati hírügynökségi átvételek</option>
+                          <option value="index.hu">Index (index.hu) — Mérsékelt / Befolyásolt hírügynökségi átvételek</option>
+                          <option value="hitgyulekezet.hu">Hit Gyülekezete Újság — Vallási-cionista dogmatika</option>
+                          <option value="Egyedi magyar források">Egyedi magyar források / Közösségi média nyilvánosság</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-550">
+                          ▼
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Custom input override */}
+                    {osintTargetDomain === "Egyedi magyar források" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                      >
+                        <input
+                          type="text"
+                          placeholder="Írj be tetszőleges hírportált vagy FB oldalt..."
+                          value={osintTargetDomain === "Egyedi magyar források" ? "" : osintTargetDomain}
+                          onChange={(e) => setOsintTargetDomain(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg p-2.5 text-xs font-semibold focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                        />
+                      </motion.div>
+                    )}
+
+                    {/* Keyword selection */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Keresett kiemelt kulcsszó / Témafókusz:
+                      </label>
+                      <input
+                        type="text"
+                        value={osintKeyword}
+                        onChange={(e) => setOsintKeyword(e.target.value)}
+                        placeholder="Pl. Gáza, Hamász, civil áldozatok, önvédelem..."
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg p-2.5 text-xs font-medium focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                        required
+                      />
+                    </div>
+
+                    {/* Preset keywords shortcuts */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase tracking-wider">Gyors-kulcsszavak választása:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {["Gáza szőnyegbombázás", "Áldozatok száma", "Hamász emberi pajzs", "UNRWA és segélyek", "Ciszjordániai telepek", "Izrael önvédelmi joga"].map((kw) => (
+                          <button
+                            key={kw}
+                            type="button"
+                            onClick={() => setOsintKeyword(kw)}
+                            className={`px-2.5 py-1.5 rounded text-[10px] font-medium transition-all ${
+                              osintKeyword === kw
+                                ? "bg-emerald-600 text-white shadow-3xs"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            #{kw}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Submit scan */}
+                    <button
+                      type="submit"
+                      disabled={osintLoading}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 px-4 rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:opacity-50 pointer-events-auto"
+                    >
+                      {osintLoading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                          <span>Adatbányászat folyamatban...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 text-emerald-400" />
+                          <span>Futtatás: OSINT Narratíva Keresés</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Right Side: Interactive sub-views (Console, Results, Source Code) */}
+                <div className="lg:col-span-12 xl:col-span-7 flex flex-col min-h-[460px] bg-slate-50 rounded-xl border border-slate-200/60 overflow-hidden shadow-2xs">
+                  
+                  {/* Console navigation bar */}
+                  <div className="bg-slate-100 border-b border-slate-200 px-3 py-2 flex flex-wrap gap-1 items-center justify-between">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setActiveOsintView("terminal")}
+                        className={`px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 ${
+                          activeOsintView === "terminal"
+                            ? "bg-slate-900 text-emerald-400 shadow-sm"
+                            : "text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        <Terminal className="w-3.5 h-3.5" />
+                        Terminál & Logok
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          if (!osintResult) return;
+                          setActiveOsintView("findings");
+                        }}
+                        disabled={!osintResult}
+                        className={`px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 ${
+                          !osintResult ? "opacity-55 cursor-not-allowed text-slate-400" : ""
+                        } ${
+                          activeOsintView === "findings"
+                            ? "bg-slate-900 text-emerald-400 shadow-sm"
+                            : "text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                        Vizsgálati Jelentés {osintResult && "(Kész)"}
+                      </button>
+
+                      <button
+                        onClick={() => setActiveOsintView("code")}
+                        className={`px-3 py-1.5 rounded-md text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 ${
+                          activeOsintView === "code"
+                            ? "bg-slate-900 text-emerald-400 shadow-sm"
+                            : "text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        <Code className="w-3.5 h-3.5" />
+                        Eredeti Python Kód
+                      </button>
+                    </div>
+
+                    <div className="text-[10px] font-mono text-slate-400 hidden sm:block">
+                      SESSION_ID: OSINT_TARGET
+                    </div>
+                  </div>
+
+                  {/* SUB-VIEW Content rendering */}
+                  <div className="p-4 flex-1 flex flex-col justify-between overflow-y-auto font-sans bg-slate-50/50">
+                    
+                    {/* CASE 1: Terminal Log (Hacker screen) */}
+                    {activeOsintView === "terminal" && (
+                      <div className="bg-slate-950 text-slate-100 rounded-lg p-4 font-mono text-[11px] leading-relaxed flex-1 space-y-1.5 overflow-y-auto max-h-[400px] shadow-inner select-text">
+                        {osintConsoleLogs.length === 0 ? (
+                          <div className="text-slate-500 h-full flex flex-col items-center justify-center py-16 text-center">
+                            <Terminal className="w-12 h-12 text-slate-800 mb-2" />
+                            <p className="font-bold text-slate-400">Hasbara Seeker terminál készenlétben.</p>
+                            <p className="text-[10px]">Indíts lekérdezést a bal oldali paraméterek segítségével!</p>
+                          </div>
+                        ) : (
+                          <>
+                            {osintConsoleLogs.map((log, index) => (
+                              <div
+                                key={index}
+                                className={
+                                  log.startsWith("❌")
+                                    ? "text-red-400 font-bold"
+                                    : log.startsWith("✅")
+                                    ? "text-[#00c853] font-bold"
+                                    : log.startsWith("⚙️") || log.startsWith("📡") || log.startsWith("🧬")
+                                    ? "text-sky-300 font-semibold"
+                                    : "text-emerald-400"
+                                }
+                              >
+                                {log}
+                              </div>
+                            ))}
+                            {osintLoading && (
+                              <div className="flex items-center gap-1.5 text-emerald-400 animate-pulse mt-2.5 pt-1.5 border-t border-slate-900">
+                                <span className="inline-block w-1.5 h-3 bg-emerald-400 animate-bounce"></span>
+                                <span>Adatbányászat folyamatban, kormánypolitikai spin detektor aktív a magyar portálokon...</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CASE 2: Findings Details & Metrics */}
+                    {activeOsintView === "findings" && osintResult && (
+                      <div className="space-y-5 animate-fadeIn">
+                        
+                        {/* Risk Gauge Header */}
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-3xs p-4 flex flex-col sm:flex-row items-stretch justify-between gap-4">
+                          
+                          {/* Score and level meter */}
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">TORZÍTÁSI KOCKÁZAT MEGÁLLAPÍTÁSA:</span>
+                              <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                {osintResult.biasRating}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-2xl font-black text-slate-900 tracking-tight">
+                                {osintResult.confidenceScore}%
+                              </span>
+                              <span className="text-xs text-slate-405 text-slate-400 font-medium">Belső hasbara-indikátor sűrűség</span>
+                            </div>
+
+                            {/* Risk level visualization bar */}
+                            <div className="w-full bg-slate-150 h-2 rounded-full overflow-hidden relative">
+                              <div
+                                className={`h-full transition-all ${
+                                  osintResult.riskLevel === "KRITIKUS" || osintResult.riskLevel === "MAGAS"
+                                    ? "bg-red-500"
+                                    : osintResult.riskLevel === "KÖZEPES"
+                                    ? "bg-amber-500"
+                                    : "bg-emerald-500"
+                                }`}
+                                style={{ width: `${osintResult.confidenceScore}%` }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          {/* Quick Diagnosis badges */}
+                          <div className="sm:border-l sm:border-slate-100 sm:pl-4 flex flex-col justify-center min-w-[140px] space-y-1">
+                            <div className="text-[10px] text-slate-404 text-slate-400 font-bold uppercase tracking-wider">Kockázati fok:</div>
+                            <div className={`text-base font-black ${
+                              osintResult.riskLevel === "KRITIKUS" || osintResult.riskLevel === "MAGAS" ? "text-red-600" : "text-amber-600"
+                            }`}>
+                              ⚠️ {osintResult.riskLevel}
+                            </div>
+                            <div className="text-[10px] text-slate-405 text-slate-400 font-mono">
+                              Idő: {osintResult.analysisTime}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Identified propaganda narratives */}
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                            <Eye className="w-4 h-4 text-emerald-600" />
+                            Kiszűrt hasbara spin narratívák a magyar lapokban:
+                          </h4>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {osintResult.detectedNarratives.map((n, i) => (
+                              <div key={i} className="bg-white rounded-lg border border-slate-200 p-3.5 space-y-2">
+                                <div className="flex justify-between items-start gap-2">
+                                  <h5 className="font-bold text-xs text-slate-900">{n.narrativeTitle}</h5>
+                                  <span className="bg-red-50 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-100 flex-shrink-0">
+                                    {n.manipulationIntensity}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 leading-normal">
+                                  <strong>Mögöttes taktikai cél:</strong> {n.tacticalPurpose}
+                                </p>
+                                
+                                {/* Typical Hungarian translation sentences */}
+                                <div className="bg-slate-50 p-2 rounded-md space-y-1 border border-slate-150">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider font-mono">Tipikus magyar átvett fordulatok:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {n.commonHungarianPhrases.map((phrase, pi) => (
+                                      <span key={pi} className="text-[9px] text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 font-semibold italic">
+                                        "{phrase}"
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Detailed Fact-Checks Table */}
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-505 text-slate-500">
+                            🔎 Konkrét csúsztatások mély elemzése és békés megcáfolása:
+                          </h4>
+                          
+                          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-150 overflow-hidden leading-relaxed shadow-3xs">
+                            {osintResult.keyFindings.map((finding, idx) => (
+                              <div key={idx} className="p-4 space-y-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white font-mono text-[10px] font-bold">
+                                    {idx + 1}
+                                  </span>
+                                  <h5 className="font-bold text-xs sm:text-sm text-slate-900 underline decoration-slate-300 decoration-2">
+                                    {finding.issueTitle}
+                                  </h5>
+                                </div>
+
+                                <blockquote className="p-3 bg-red-50/50 rounded-lg border-l-4 border-red-400 text-xs text-slate-700 font-medium italic">
+                                  <strong>Magyar médiaállítás:</strong> "{finding.mediaQuotationExample}"
+                                </blockquote>
+
+                                <div className="text-xs text-slate-700 leading-relaxed font-sans pl-1.5 space-y-1">
+                                  <p className="font-semibold text-emerald-800 flex items-center gap-1">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                    <span>Tényalapú békés cáfolat és ellenpont:</span>
+                                  </p>
+                                  <p className="text-slate-650 bg-slate-50/50 p-2.5 rounded-lg border border-slate-150">
+                                    {finding.factCheckDebunk}
+                                  </p>
+                                </div>
+
+                                <div className="text-[10px] text-slate-500 font-mono bg-slate-100/60 py-1.5 px-3 rounded-md flex items-center gap-1">
+                                  <Info className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                  <span>Hivatalos nemzetközi jogvédő forrás: <strong className="text-slate-700 font-semibold">{finding.internationalLawHivatalosReferencia}</strong></span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* OSINT Expert Verdict summary */}
+                        <div className="bg-emerald-50/20 border border-emerald-150 rounded-xl p-4 space-y-1.5 leading-relaxed font-sans">
+                          <h4 className="font-bold text-xs text-emerald-800 flex items-center gap-1.5">
+                            <ShieldAlert className="w-4.5 h-4.5 text-emerald-600 flex-shrink-0" />
+                            OSINT SZAKÉRTŐI JELENTÉS ÖSSZEGZÉSE / VERDICT:
+                          </h4>
+                          <p className="text-xs text-slate-750 font-sans leading-relaxed">
+                            {osintResult.verdict}
+                          </p>
+                          <p className="text-[10px] text-slate-400 italic font-mono mt-1 pt-1 border-t border-slate-200">
+                            *Az elemzést a Hasbara Seeker offline szótára és a Valós idejű NLP mintagenerátor AI készítette.
+                          </p>
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* CASE 3: Python Source Code (Offline Local execution tool) */}
+                    {activeOsintView === "code" && (
+                      <div className="space-y-4 font-sans text-xs">
+                        <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2">
+                          <h4 className="font-bold text-slate-900">Futass saját Hasbara Seeker Python OSINT projektet!</h4>
+                          <p className="text-slate-500 leading-normal">
+                            Az alábbi Python kódot letöltheted és közvetlenül a saját számítógépeden futtathatod. Valós időben szűri a magyar hírportálok (Mandiner, Index, Telex, Origo, Demokrata) RSS hírfolyamait, megszámolja az Izrael-Palesztina és a propaganda-spin kulcsszavak és narratívák eloszlását a hazai sajtóban.
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px] text-slate-600">Python 3.x</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px] text-slate-600">feedparser</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-mono text-[10px] text-slate-600">beautifulsoup4</span>
+                          </div>
+                        </div>
+
+                        {/* Code Display pre with Copy Button */}
+                        <div className="relative rounded-lg border border-slate-200 bg-slate-900 text-slate-100 overflow-hidden shadow-inner leading-relaxed select-text font-mono text-[10px] sm:text-xs">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(PYTHON_SCRIPT_CODE);
+                              alert("Python kód a vágólapra másolva! Hozz létre egy 'hasbara_seeker.py' fájlt, illeszd be, majd futtasd a gépeden.");
+                            }}
+                            className="absolute top-2.5 right-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-lg px-2.5 py-1.5 flex items-center gap-1 transition-all text-[11px] pointer-events-auto"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Kód Másolása</span>
+                          </button>
+                          
+                          <pre className="p-4 overflow-x-auto max-h-[300px] leading-relaxed">
+                            {PYTHON_SCRIPT_CODE}
+                          </pre>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 text-xs text-amber-800 space-y-1.5 font-sans leading-relaxed">
+                          <span className="font-bold block">💡 Így futtasd lokálisan:</span>
+                          <ol className="list-decimal pl-4 space-y-1.5 text-slate-700">
+                            <li>Telepítsd a csomagokat: <code className="bg-white px-1.5 py-0.5 rounded border border-amber-250 font-mono text-[11px]">pip install feedparser beautifulsoup4 requests</code></li>
+                            <li>Mentsd el ezt a kódot a számítógépeden <code className="bg-white px-1.5 py-0.5 rounded border border-amber-250 font-mono text-[11px]">hasbara_seeker.py</code> néven.</li>
+                            <li>Futtasd le a terminálból/parancssorból: <code className="bg-white px-1.5 py-0.5 rounded border border-amber-250 font-mono text-[11px]">python hasbara_seeker.py</code></li>
+                          </ol>
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </motion.div>
           </div>
         )}
 

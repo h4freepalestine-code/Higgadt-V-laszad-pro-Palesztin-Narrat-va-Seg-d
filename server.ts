@@ -141,6 +141,111 @@ Kérlek, elemezd a fenti komment állításait és generáld le a strukturált J
   }
 });
 
+// OSINT (Open Source Intelligence) Route for analyzing Hasbara narratives focusing on Hungary
+app.post("/api/osint-scan", async (req, res) => {
+  try {
+    const { targetDomain, keyword } = req.body;
+
+    if (!targetDomain || typeof targetDomain !== "string") {
+      res.status(400).json({ error: "Kérjük, adjon meg egy célpont domént vagy forrást!" });
+      return;
+    }
+
+    const ai = getGeminiClient();
+
+    const systemInstruction = `Te vagy a "Hasbara Seeker" OSINT (nyílt forráskódú hírszerzési) elemző modulja, amely a magyarországi médiatérben megjelenő Izrael-Palesztina témájú cikkeket, bejegyzéseket, propagandát és hasbara (állami/szervezett spin) narratívákat vizsgálja.
+    
+    A te feladatod kimutatni, hogyan jelenik meg az izraeli kormánynarratíva (vagy annak közvetett befolyása) a megadott magyar hírportálon vagy kulcsszó kapcsán.
+    Legyél szigorúan objektív, tényalapú és szakértői stílusú. Mutass be valós és létező tendenciákat a magyar médiahálózatokban (pl. kormánypárti lapok mandiner.hu, origo.hu, demokrata.hu izraeli elfogultsága vagy egyházi csatornák, illetve független portálok telex.hu, index.hu árnyaltabb, mégis gyakran egyoldalú forráslefordításai).
+    
+    Célod leleplezni a csúsztatásokat, békésen, tudományosan, a nemzetközi jog és az ENSZ jelentések fényében.
+    
+    A visszatérési formátumnak egy szigorú JSON struktúrának kell lennie az alábbi mezőkkel:
+    - "analysisTime": Az elemzés pontos időbesszorzása (például formázott dátum).
+    - "riskLevel": Kockázati szint (pl. "KRITIKUS", "MAGAS", "KÖZEPES", "ALACSONY"), ami jelzi a propagandisztikus vagy egyoldalú tartalom torzítási intenzitását az adott témában.
+    - "confidenceScore": Elemzési megbízhatóság százalékban (szám 0-100 között).
+    - "biasRating": Elfogultsági besorolás (pl. "Erősen egyoldalú izraeli fókuszú", "Szerkezetileg korlátozott diskurzus", "Részben egyensúlyozott").
+    - "detectedNarratives": Egy lista (array) a megfigyelt hasbara/propaganda narratívákról. Minden tétel tartalmazza:
+        * "narrativeTitle": A narratíva címe (pl. "Önvédelmi retorika kiterjesztése civilekre", "Emberi pajzs narratíva mint univerzális felmentés")
+        * "commonHungarianPhrases": Tipikus magyar szófordulatok, amikkel ezt a narratívát átveszik (egy lista, legalább 2-3 példa, pl: "joga van megvédenie magát", "Hamasz-terroristák közé bújtak")
+        * "tacticalPurpose": Mi a narratíva valódi taktikai célja?
+        * "manipulationIntensity": "Nagyon Magas", "Magas", "Közepes" vagy "Alacsony"
+    - "keyFindings": Konkrét, valósághű hírpublikációs minták vagy talált csúsztatások elemzése. Minden tétel tartalmazza:
+        * "issueTitle": A torzítás vagy elhallgatás témája
+        * "mediaQuotationExample": Tipikus magyar médiaidézet példa vagy jellemző állítás
+        * "factCheckDebunk": Tényalapú békés cáfolat és tényellenőrző magyarázat
+        * "internationalLawHivatalosReferencia": Hivatalos nemzetközi jogvédő vagy ENSZ (UNRWA, OCHA, ICJ, Amnesty International) hivatkozási pont
+    - "verdict": Összegző OSINT szakértői vélemény az adott médiumról vagy kulcsszóról a magyar nyilvánosságban, tippekkel a magyar olvasóknak az álhírek felismeréséhez.`;
+
+    const userPrompt = `Futtass elemzést a következő magyar forráson/kulcsszón:
+    Célpont/Médium: "${targetDomain}"
+    Fókuszált keresési kulcsszó: "${keyword || "Általános hasbara szűrés"}"
+    
+    Elemezz és adj megvalósítható OSINT hírszerzési jelentést magyarul az elvárt szigorú JSON formátumban.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          required: ["analysisTime", "riskLevel", "confidenceScore", "biasRating", "detectedNarratives", "keyFindings", "verdict"],
+          properties: {
+            analysisTime: { type: Type.STRING },
+            riskLevel: { type: Type.STRING },
+            confidenceScore: { type: Type.INTEGER },
+            biasRating: { type: Type.STRING },
+            detectedNarratives: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                required: ["narrativeTitle", "commonHungarianPhrases", "tacticalPurpose", "manipulationIntensity"],
+                properties: {
+                  narrativeTitle: { type: Type.STRING },
+                  commonHungarianPhrases: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  tacticalPurpose: { type: Type.STRING },
+                  manipulationIntensity: { type: Type.STRING }
+                }
+              }
+            },
+            keyFindings: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                required: ["issueTitle", "mediaQuotationExample", "factCheckDebunk", "internationalLawHivatalosReferencia"],
+                properties: {
+                  issueTitle: { type: Type.STRING },
+                  mediaQuotationExample: { type: Type.STRING },
+                  factCheckDebunk: { type: Type.STRING },
+                  internationalLawHivatalosReferencia: { type: Type.STRING }
+                }
+              }
+            },
+            verdict: { type: Type.STRING }
+          }
+        }
+      }
+    });
+
+    const outputText = response.text;
+    if (!outputText) {
+      throw new Error("Nem érkezett érvényes kimenet a nyílt forrású elemző modultól.");
+    }
+
+    const parsedResult = JSON.parse(outputText);
+    res.json(parsedResult);
+
+  } catch (error: any) {
+    console.error("Hiba az OSINT keresés generálása során:", error);
+    res.status(500).json({
+      error: "Sajnáljuk, hiba lépett fel az OSINT vizsgálati motor futtatása közben.",
+      details: error.message
+    });
+  }
+});
+
 // Configure Vite or Static files depending on environment
 const startServer = async () => {
   if (process.env.NODE_ENV !== "production") {

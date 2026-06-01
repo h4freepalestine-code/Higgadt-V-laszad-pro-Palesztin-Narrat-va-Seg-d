@@ -53,3 +53,27 @@ export interface QuizQuestion {
   explanation: string;
   source: string;
 }
+
+export interface OsintNarrative {
+  narrativeTitle: string;
+  commonHungarianPhrases: string[];
+  tacticalPurpose: string;
+  manipulationIntensity: string;
+}
+
+export interface OsintFinding {
+  issueTitle: string;
+  mediaQuotationExample: string;
+  factCheckDebunk: string;
+  internationalLawHivatalosReferencia: string;
+}
+
+export interface OsintResult {
+  analysisTime: string;
+  riskLevel: string;
+  confidenceScore: number;
+  biasRating: string;
+  detectedNarratives: OsintNarrative[];
+  keyFindings: OsintFinding[];
+  verdict: string;
+}
